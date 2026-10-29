@@ -44,6 +44,7 @@ final class CompassRecorder: NSObject, ObservableObject, CLLocationManagerDelega
     var device: simd_float4x4
   }
   private var poses: [Pose] = []
+  var authorizationStatus: Int { Int(manager.authorizationStatus.rawValue) }
 
   override init() {
     super.init()

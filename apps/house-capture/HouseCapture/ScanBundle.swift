@@ -361,6 +361,14 @@ struct Diagnostics: Codable {
     var coverageQueueDelayMS: Double?
     var pendingMeshUpdates: Int?
     var coalescedMeshUpdates: Int?
+    var cameraAuthorization: Int?
+    var locationAuthorization: Int?
+    var cameraWidth: Int?
+    var cameraHeight: Int?
+    var cameraPixelFormat: UInt32?
+    var cameraLumaMean: Double?
+    var cameraLumaMin: Int?
+    var cameraLumaMax: Int?
   }
 
   struct Event: Codable {
@@ -390,6 +398,7 @@ struct Diagnostics: Codable {
   }
 
   mutating func log(_ what: String, since start: Date) {
+    print("CAPTURE: \(what)")
     var list = events ?? []
     list.append(Event(t: (Date().timeIntervalSince(start) * 10).rounded() / 10, what: what))
     if list.count > 400 { list.removeFirst(list.count - 400) }

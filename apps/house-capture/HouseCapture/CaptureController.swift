@@ -1,4 +1,5 @@
 import ARKit
+import AVFoundation
 import CoreImage
 import CoreImage.CIFilterBuiltins
 import ImageIO
@@ -688,10 +689,10 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
     engine.setRoom(nil)
     scanView.showRoom(nil)
     phase = .scanning
-    compass.start()
     applyGhostOpacity()
     refreshCoverage()
     diagnostics.log("room \(roomIndex) '\(roomName)' start", since: startedAt)
+    diagnostics.log("permissions camera=\(AVCaptureDevice.authorizationStatus(for: .video).rawValue) location=\(compass.authorizationStatus); worldTrackingSupported=\(ARWorldTrackingConfiguration.isSupported) roomPlanSupported=\(Self.isSupported)", since: startedAt)
     roomSession.run(configuration: RoomCaptureSession.Configuration())
     sessionRunning = true
     UIApplication.shared.isIdleTimerDisabled = true
@@ -736,7 +737,6 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
     do { try CaptureReadiness.requireStorage(at: bundle.url) }
     catch { lastWarning = error.localizedDescription; return }
     paused = false
-    compass.start()
     previousPose = nil // no blur estimate across the gap
     scanView.feed.isOn = captureReady
     if captureReady { scanView.refeedEngine(from: arSession) } // the mesh kept growing while paused
@@ -1102,6 +1102,9 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
   /// this runs every half second while scanning. Never resets tracking, and never carries a
   /// world map (that would start relocalizing all over again).
   private func ensureMeshAndDepth() {
+    // Leave RoomPlan's camera/VIO configuration alone while ARKit is still
+    // establishing a world frame.
+    guard captureReady, !paused else { return }
     guard let c = arSession.configuration as? ARWorldTrackingConfiguration else { return }
     let depthOK = !ARWorldTrackingConfiguration.supportsFrameSemantics(.sceneDepth) || c.frameSemantics.contains(.sceneDepth)
     let meshOK = c.sceneReconstruction.contains(.meshWithClassification)
@@ -1151,6 +1154,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       lastWarning = "Storage is almost full. Recording is paused. Finish this room to save what is available, then free space before continuing."
     }
     let frame = arSession.currentFrame
+    let levels = frame.flatMap { Diagnostics.cameraLevels($0.capturedImage) }
     let meshes = frame?.anchors.compactMap { $0 as? ARMeshAnchor } ?? []
     diagnostics.recordSample(.init(
       t: Date().timeIntervalSince(startedAt), phase: "\(phase)",
@@ -1163,7 +1167,14 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       meshAnchors: meshes.count, meshVertices: meshes.reduce(0) { $0 + $1.geometry.vertices.count },
       photos: photos.count, depthFrames: depthRecorder.records.count, photosInFlight: photosInFlight,
       coverageQueueDelayMS: coverageQueueDelayMS,
-      pendingMeshUpdates: engine.pendingMeshUpdates, coalescedMeshUpdates: engine.coalescedMeshUpdates))
+      pendingMeshUpdates: engine.pendingMeshUpdates, coalescedMeshUpdates: engine.coalescedMeshUpdates,
+      cameraAuthorization: Int(AVCaptureDevice.authorizationStatus(for: .video).rawValue),
+      locationAuthorization: compass.authorizationStatus,
+      cameraWidth: frame.map { CVPixelBufferGetWidth($0.capturedImage) },
+      cameraHeight: frame.map { CVPixelBufferGetHeight($0.capturedImage) },
+      cameraPixelFormat: frame.map { CVPixelBufferGetPixelFormatType($0.capturedImage) },
+      cameraLumaMean: levels?.mean, cameraLumaMin: levels?.min, cameraLumaMax: levels?.max))
+    print("CAPTURE: cameraAuth=\(AVCaptureDevice.authorizationStatus(for: .video).rawValue) locationAuth=\(compass.authorizationStatus) tracking=\(frame.map { Self.describeTracking($0.camera.trackingState) } ?? "no frame") features=\(frame?.rawFeaturePoints?.points.count ?? 0) luma=\(levels.map { String(format: "%.1f [%d,%d]", $0.mean, $0.min, $0.max) } ?? "unavailable")")
     if !coverageProbePending {
       coverageProbePending = true
       engine.measureQueueDelay { [weak self] delay in
@@ -1336,6 +1347,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       diagnostics.whiteBalance = cameraControl.summary
     }
     guard !paused, captureReady else { return }
+    compass.start()
     compass.observe(frame, room: roomIndex)
     let budget = captureBudget
     depthRecorder.consider(frame, room: roomIndex, camera: cameraControl.state(for: frame), interval: budget.depthInterval)
