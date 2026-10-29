@@ -6,6 +6,7 @@ import { showLayout } from './layout';
 import { boundsCenter, computeVastuPreview, polygonCentroid, type VastuViewSettings } from './vastu';
 import { makeVastuAgentContext } from './vastu-context';
 import { disposeObjects } from '../../../packages/room-runtime/dispose';
+import { installAppearanceToggle } from './appearance';
 import './inspect.css';
 
 type MeasuredLayout = Omit<RoomLayout, 'walls'> & { source?: string; walls: (RoomLayout['walls'][number] & { height?: number })[] };
@@ -57,6 +58,10 @@ function render() {
   overlay?.update(camera);
 }
 controls.addEventListener('change', render);
+installAppearanceToggle(document.querySelector<HTMLButtonElement>('#appearance-toggle')!, appearance => {
+  scene.background = new THREE.Color(appearance === 'dark' ? '#142126' : '#e7ecea');
+  render();
+});
 
 function show(value: unknown, label: string) {
   const data = readLayout(value);
@@ -195,9 +200,9 @@ function addVastuPreview(data: MeasuredLayout) {
       const [nx,nz]=n, east:[number,number]=[-nz,nx];const c=settings.center;
       const local=(u:number,v:number):[number,number]=>[c[0]+east[0]*u-nx*v,c[1]+east[1]*u-nz*v];
       const border=[local(-settings.gridWidth/2,-settings.gridDepth/2),local(settings.gridWidth/2,-settings.gridDepth/2),local(settings.gridWidth/2,settings.gridDepth/2),local(-settings.gridWidth/2,settings.gridDepth/2)];
-      const grid=document.createElementNS(svg.namespaceURI,'polygon');grid.setAttribute('points',border.map(p=>p.join(',')).join(' '));grid.setAttribute('fill','#c49b4a');grid.setAttribute('fill-opacity',String(settings.opacity));grid.setAttribute('stroke','#604d2a');grid.setAttribute('stroke-width','.025');drawing.append(grid);
-      for(const v of [-settings.gridDepth/6,settings.gridDepth/6]){const line=document.createElementNS(svg.namespaceURI,'line'),a=local(-settings.gridWidth/2,v),b=local(settings.gridWidth/2,v);line.setAttribute('x1',String(a[0]));line.setAttribute('y1',String(a[1]));line.setAttribute('x2',String(b[0]));line.setAttribute('y2',String(b[1]));line.setAttribute('stroke','#604d2a');line.setAttribute('stroke-width','.025');drawing.append(line);}
-      for(const u of [-settings.gridWidth/6,settings.gridWidth/6]){const line=document.createElementNS(svg.namespaceURI,'line'),a=local(u,-settings.gridDepth/2),b=local(u,settings.gridDepth/2);line.setAttribute('x1',String(a[0]));line.setAttribute('y1',String(a[1]));line.setAttribute('x2',String(b[0]));line.setAttribute('y2',String(b[1]));line.setAttribute('stroke','#604d2a');line.setAttribute('stroke-width','.025');drawing.append(line);}
+      const grid=document.createElementNS(svg.namespaceURI,'polygon');grid.setAttribute('points',border.map(p=>p.join(',')).join(' '));grid.setAttribute('fill','var(--vastu-grid-fill)');grid.setAttribute('fill-opacity',String(settings.opacity));grid.setAttribute('stroke','var(--vastu-grid-line)');grid.setAttribute('stroke-width','.025');drawing.append(grid);
+      for(const v of [-settings.gridDepth/6,settings.gridDepth/6]){const line=document.createElementNS(svg.namespaceURI,'line'),a=local(-settings.gridWidth/2,v),b=local(settings.gridWidth/2,v);line.setAttribute('x1',String(a[0]));line.setAttribute('y1',String(a[1]));line.setAttribute('x2',String(b[0]));line.setAttribute('y2',String(b[1]));line.setAttribute('stroke','var(--vastu-grid-line)');line.setAttribute('stroke-width','.025');drawing.append(line);}
+      for(const u of [-settings.gridWidth/6,settings.gridWidth/6]){const line=document.createElementNS(svg.namespaceURI,'line'),a=local(u,-settings.gridDepth/2),b=local(u,settings.gridDepth/2);line.setAttribute('x1',String(a[0]));line.setAttribute('y1',String(a[1]));line.setAttribute('x2',String(b[0]));line.setAttribute('y2',String(b[1]));line.setAttribute('stroke','var(--vastu-grid-line)');line.setAttribute('stroke-width','.025');drawing.append(line);}
       if(settings.showLabels&&annotationsGroup){const names=['NW','N','NE','W','Grid center','E','SW','S','SE'];for(let row=0;row<3;row++)for(let col=0;col<3;col++){const [x,y]=local((col-1)*settings.gridWidth/3,(row-1)*settings.gridDepth/3),label=document.createElementNS(svg.namespaceURI,'text');label.setAttribute('x',String(x));label.setAttribute('y',String(y));label.setAttribute('class','vastu-label');label.setAttribute('text-anchor','middle');label.textContent=names[row*3+col];annotationsGroup.append(label);}}
     }
     if(settings.showCenter&&annotationsGroup){const dot=document.createElementNS(svg.namespaceURI,'circle');dot.setAttribute('cx',String(settings.center[0]));dot.setAttribute('cy',String(settings.center[1]));dot.setAttribute('r','.08');dot.setAttribute('class','vastu-center');annotationsGroup.append(dot);}
