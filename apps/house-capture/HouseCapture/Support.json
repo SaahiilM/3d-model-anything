@@ -16,7 +16,7 @@
     },
     {
       "title": "Record room directions",
-      "body": "Allow Location While Using the App for true north. The capture screen shows the rear camera bearing and estimated accuracy. Without a usable location, readings are marked magnetic north. Move away from metal or electrical equipment if directions are uncertain. Room exports retain compass readings for reconstructed wall/window labels. Geographic coordinates are not saved. Old scans cannot recover compass directions that were never recorded."
+      "body": "Record compass directions is optional and off for every new capture session. Enable the toggle before scanning or while paused, then allow Location While Using the App for true north. Turning it off stops new readings; earlier readings stay saved. The capture screen shows the rear camera bearing and estimated accuracy. Without a usable location, readings are marked magnetic north. Move away from metal or electrical equipment if directions are uncertain. Room exports retain compass readings for reconstructed wall/window labels. Geographic coordinates are not saved. Old scans cannot recover compass directions that were never recorded."
     },
     {
       "title": "Import a shared room",

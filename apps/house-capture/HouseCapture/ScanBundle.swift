@@ -202,7 +202,7 @@ struct ScanBundle {
     manifest.photos = "photos/photos.json"
     manifest.photoCount = selectedPhotos.count
     manifest.compass = selectedCompass.isEmpty ? nil : "compass/headings.json"
-    manifest.compassSampleCount = selectedCompass.count
+    manifest.compassSampleCount = selectedCompass.isEmpty ? nil : selectedCompass.count
     manifest.depthFrames = "depth/frames.json"
     manifest.depthFrameCount = selectedDepth.count
     manifest.mesh = room.mesh

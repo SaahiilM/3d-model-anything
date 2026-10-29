@@ -76,6 +76,14 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
   @Published private(set) var photoCount = 0
   private let autoPhotos = true
   @Published var highResolutionPhotos = false
+  /// Explicit opt-in for this capture session; never inherited from Location permission.
+  @Published var recordDirections = false {
+    didSet {
+      guard recordDirections != oldValue else { return }
+      if recordDirections { compass.prepare() }
+      else { compass.stop() }
+    }
+  }
   @Published private(set) var trackingIssue: TrackingRecovery.Issue? = .starting
   @Published private(set) var sessionNeedsRestart = false
   @Published private(set) var recordingSaveFailed = false
@@ -306,7 +314,6 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
   func begin() {
     guard !begun else { return }
     begun = true
-    compass.prepare()
     NotificationCenter.default.addObserver(self, selector: #selector(memoryWarning),
         name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(thermalChanged),
@@ -1061,7 +1068,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       depthFrameCount: depthRecorder.records.count,
       diagnostics: diagnostics,
       compass: compass.records.isEmpty ? nil : "compass/headings.json",
-      compassSampleCount: compass.records.count
+      compassSampleCount: compass.records.isEmpty ? nil : compass.records.count
     ))
   }
 
@@ -1347,8 +1354,10 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       diagnostics.whiteBalance = cameraControl.summary
     }
     guard !paused, captureReady else { return }
-    compass.start()
-    compass.observe(frame, room: roomIndex)
+    if recordDirections {
+      compass.start()
+      compass.observe(frame, room: roomIndex)
+    }
     let budget = captureBudget
     depthRecorder.consider(frame, room: roomIndex, camera: cameraControl.state(for: frame), interval: budget.depthInterval)
     if frame.timestamp - lastEvaluate > budget.evaluationInterval {
@@ -1522,7 +1531,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       pass: "scan",
       highRes: shot.highRes,
       camera: shot.camera,
-      compassTimestamp: compass.nearest(to: shot.timestamp, room: roomIndex)?.timestamp
+      compassTimestamp: recordDirections ? compass.nearest(to: shot.timestamp, room: roomIndex)?.timestamp : nil
     )
     let view = PhotoView(transform: shot.transform)
     let enginePhoto = CoverageEngine.Photo(

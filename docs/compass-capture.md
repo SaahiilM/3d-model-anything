@@ -4,6 +4,8 @@ This fork records the iPhone compass during a LiDAR room scan and carries the ev
 
 ## Capture
 
+**Record compass directions** is off by default for every new capture session, including sessions on phones that already granted Location permission. Enable it before starting a room or while paused. With it off, no compass/location updates start, no Location permission is requested, and captures without readings omit compass metadata. Turning it off stops new readings and photo associations; observations already recorded remain in exports. The existing scanning and reconstruction flow works without enabling this feature.
+
 Location While Using the App lets Core Location correct magnetic north to true north. Coarse location is sufficient; the app never saves geographic coordinates. Denied permission, an unavailable fix or invalid true heading produces explicitly magnetic observations instead.
 
 The recorder keeps up to two observations per second, paired to the nearest AR pose within 150 ms. It buffers two seconds of fresh poses while tracking is stable and recording is active. Pausing and room/session completion stop the sensors; recovery clears pose input. Readings are saved with the room/session manifest, like the photo index.
