@@ -1,4 +1,5 @@
 import type { RoomLayout } from '../../../packages/room-runtime/types';
+import { compassDescription, facingBearing, formatBearing, hasNorth } from './compass';
 
 /** SVG plan: no perspective or lighting, with the same meter coordinates as the scan. */
 export function showLayout(host: HTMLElement, room: RoomLayout, name: string) {
@@ -22,7 +23,7 @@ export function showLayout(host: HTMLElement, room: RoomLayout, name: string) {
   const subtitle = document.createElement('p');
   subtitle.textContent = `${width.toFixed(2)} × ${height.toFixed(2)} m overall · Approx. ${area.toFixed(1)} m² / ${Math.round(area * 10.764)} sq ft`;
   const note = document.createElement('p');
-  note.textContent = room.note ?? 'Scan measurements; furniture labels are automatic detections. Not compass-oriented.';
+  note.textContent = [room.note ?? 'Scan measurements; furniture labels are automatic detections.', compassDescription(room.compass)].join(' ');
   const fit = document.createElement('button'); fit.textContent = room.rooms ? 'Fit house' : 'Fit room';
   header.append(title, subtitle, note, fit); host.append(header);
   const svg = el('svg', { role: 'img', 'aria-label': `${name} floor plan with walls, openings and furniture` });
@@ -47,6 +48,19 @@ export function showLayout(host: HTMLElement, room: RoomLayout, name: string) {
       svg.append(el('line', {...coords, stroke:'#f7f6f2', 'stroke-width':.085}));
       svg.append(el('line', {...coords, stroke:o.kind==='window'?'#258eaf':'#be753d', 'stroke-width':.025}));
     }
+    const facing = facingBearing(w.u, room.compass);
+    if (facing) {
+      const x = (w.a[0] + w.b[0]) / 2 - w.u[2] * .28;
+      const z = (w.a[1] + w.b[1]) / 2 + w.u[0] * .28;
+      svg.append(el('text', { x, y:z, 'text-anchor':'middle', 'font-size':.14, fill:'#13627a',
+        stroke:'#fff', 'stroke-width':.04, 'paint-order':'stroke' }, formatBearing(facing)));
+    }
+  }
+  if (hasNorth(room.compass)) {
+    const n = room.compass.north, x = minX - .4, z = minZ - .1;
+    svg.append(el('line', {x1:x, y1:z, x2:x+n[0]*.3, y2:z+n[2]*.3, stroke:'#13627a', 'stroke-width':.035}));
+    svg.append(el('circle', {cx:x+n[0]*.3, cy:z+n[2]*.3, r:.045, fill:'#13627a'}));
+    svg.append(el('text', {x, y:z+.22, 'text-anchor':'middle', 'font-size':.13, fill:'#13627a'}, 'N'));
   }
   for (const [i,o] of room.objects.entries()) {
     // Numbered labels stay upright; the legend preserves categories without covering furniture.

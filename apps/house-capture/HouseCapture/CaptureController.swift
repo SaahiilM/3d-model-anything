@@ -121,6 +121,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
     return s
   }()
   let engine = CoverageEngine()
+  let compass = CompassRecorder()
   private(set) lazy var scanView: ScanView = {
     let scan = ScanView(session: arSession, engine: engine)
     scan.onSessionFailure = { [weak self] chain in
@@ -304,6 +305,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
   func begin() {
     guard !begun else { return }
     begun = true
+    compass.prepare()
     NotificationCenter.default.addObserver(self, selector: #selector(memoryWarning),
         name: UIApplication.didReceiveMemoryWarningNotification, object: nil)
     NotificationCenter.default.addObserver(self, selector: #selector(thermalChanged),
@@ -686,6 +688,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
     engine.setRoom(nil)
     scanView.showRoom(nil)
     phase = .scanning
+    compass.start()
     applyGhostOpacity()
     refreshCoverage()
     diagnostics.log("room \(roomIndex) '\(roomName)' start", since: startedAt)
@@ -702,6 +705,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
     if paused { resume() }
     commitCandidate(allowHighResolution: false)
     phase = .finishingRoom
+    compass.stop()
     scanView.feed.isOn = false // freeze accepted mesh input for the export barrier
     // export the mesh while it's all still there, then let RoomPlan wrap up (didEndWith → finish)
     let file = bundle.file("mesh/room-\(roomIndex).ply")
@@ -721,6 +725,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
   func pause() {
     guard phase == .scanning, !paused else { return }
     paused = true
+    compass.stop()
     candidate = nil
     scanView.feed.isOn = false
     diagnostics.log("pause", since: startedAt)
@@ -731,6 +736,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
     do { try CaptureReadiness.requireStorage(at: bundle.url) }
     catch { lastWarning = error.localizedDescription; return }
     paused = false
+    compass.start()
     previousPose = nil // no blur estimate across the gap
     scanView.feed.isOn = captureReady
     if captureReady { scanView.refeedEngine(from: arSession) } // the mesh kept growing while paused
@@ -854,6 +860,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       try? FileManager.default.removeItem(at: bundle.file(photo.file))
     }
     photos.removeAll { $0.room == last.index }
+    compass.discard(room: last.index)
     photoViews.removeAll { $0.room == last.index }
     enginePhotos.removeAll { $0.room == last.index }
     engine.reset(photos: priorPhotos + enginePhotos)
@@ -883,6 +890,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
     finishingStep = "Saving the map: keep the camera moving slowly…"
     if !retrying { await saveWorldMap(final: true) }
     stopTicking()
+    compass.stop()
     arSession.pause()
     sessionRunning = false
     UIApplication.shared.isIdleTimerDisabled = false
@@ -954,6 +962,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
   /// Leave without saving anything: the session disappears from the house.
   func abandon() {
     closed = true
+    compass.stop()
     stopTicking()
     if roomSessionCreated, phase == .scanning || phase == .finishingRoom { roomSession.stop() }
     arSession.pause()
@@ -1027,6 +1036,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
 
   private func writeManifest(structure: String? = nil, structureError: String? = nil) throws {
     let existing = structure == nil ? bundle.manifest : nil
+    try bundle.saveCompass(compass.records)
     try bundle.writeManifest(Manifest(
       format: Manifest.currentFormat,
       createdAt: startedAt,
@@ -1049,7 +1059,9 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       photoCount: photos.count,
       depthFrames: depthRecorder.records.isEmpty ? nil : "depth/frames.json",
       depthFrameCount: depthRecorder.records.count,
-      diagnostics: diagnostics
+      diagnostics: diagnostics,
+      compass: compass.records.isEmpty ? nil : "compass/headings.json",
+      compassSampleCount: compass.records.count
     ))
   }
 
@@ -1285,6 +1297,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
   @objc private func onDisplayLink() {
     sampleDiagnostics()
     updateRecovery(arSession.currentFrame, now: CACurrentMediaTime())
+    if !captureReady { compass.clearPoses() }
     guard let frame = arSession.currentFrame, frame.timestamp != previousPose?.time else { return }
     let now = CACurrentMediaTime()
     trackStatus(frame)
@@ -1323,6 +1336,7 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       diagnostics.whiteBalance = cameraControl.summary
     }
     guard !paused, captureReady else { return }
+    compass.observe(frame, room: roomIndex)
     let budget = captureBudget
     depthRecorder.consider(frame, room: roomIndex, camera: cameraControl.state(for: frame), interval: budget.depthInterval)
     if frame.timestamp - lastEvaluate > budget.evaluationInterval {
@@ -1495,7 +1509,8 @@ final class CaptureController: NSObject, ObservableObject, RoomCaptureSessionDel
       blurPixels: manual ? nil : shot.blur * Float(scale),
       pass: "scan",
       highRes: shot.highRes,
-      camera: shot.camera
+      camera: shot.camera,
+      compassTimestamp: compass.nearest(to: shot.timestamp, room: roomIndex)?.timestamp
     )
     let view = PhotoView(transform: shot.transform)
     let enginePhoto = CoverageEngine.Photo(

@@ -26,10 +26,12 @@ targets:
       properties:
         CFBundleDisplayName: 3D Model Anything
         NSCameraUsageDescription: 3D Model Anything uses the camera and LiDAR scanner to measure your rooms and take reference photos.
+        NSLocationWhenInUseUsageDescription: 3D Model Anything uses your location while scanning to record true north for room and window directions. Your geographic coordinates are not saved.
         # Non-LiDAR devices can import and review scans; capture is checked at runtime.
         ITSAppUsesNonExemptEncryption: false
-        HouseCapturePrivacyURL: "https://wesbos.github.io/3d-model-anything/privacy.html"
-        HouseCaptureSupportURL: "https://wesbos.github.io/3d-model-anything/support.html"
+        # Publish this fork's updated privacy page before configuring a public URL.
+        HouseCapturePrivacyURL: ""
+        HouseCaptureSupportURL: "https://github.com/SaahiilM/3d-model-anything/issues"
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         UILaunchScreen: {}

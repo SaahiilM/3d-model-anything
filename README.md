@@ -36,6 +36,8 @@ The app is source-available here; an App Store release is a separate distributio
 
 Export a room or session through the system share sheet and extract it into an ignored `data/captures-in/<room>/` directory. Exports keep the existing `house-capture/5` contract; changing the app name does not change the files.
 
+This fork adds compass capture during scanning. Allow Location While Using the App for true north; otherwise readings are marked magnetic north. Direction observations, accuracy and matching camera poses travel in room exports. Reconstruction preserves north through room rotations and the viewer labels outward wall/window directions. See [compass capture](docs/compass-capture.md) for the contract and remaining device validation.
+
 ## Use the skill
 
 The skill lives at `.agents/skills/scan-to-threejs/SKILL.md`. Open this repository in an agent that supports local skills and ask it to use **scan-to-threejs** with your extracted export. You can also copy that skill directory into your agent's skill directory; the companion viewer/runtime in this repo is still needed for its capture workflow.
