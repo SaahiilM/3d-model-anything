@@ -1,6 +1,6 @@
 # Optional Vastu review — proposed plan
 
-Status: apartment analysis remains a design proposal. A bounded room-only sector preview and copyable context are available in the local inspector; they do not establish an apartment center or produce compliance verdicts.
+Status: apartment analysis remains a design proposal. The local browser inspector has an optional, customizable room-only exploratory overlay and copyable context; neither establishes an apartment center or produces compliance verdicts. The current preview is browser-scoped. Native iPhone support is future work.
 
 ## Purpose and boundaries
 
@@ -10,9 +10,9 @@ Vastu review defaults off on each opening. Direction capture is separately optio
 
 ## Research findings
 
-Eight 45-degree radial sectors, a 3×3 nine-cell grid and more detailed mandalas are different constructions. Do not present them as interchangeable. Start with eight radial sectors as requested. North is centered at 0°, with boundaries at ±22.5°; each next sector advances 45°. Clip wedges to the confirmed apartment footprint. A Brahmasthan is a central area defined by a chosen grid convention, not simply the center point or an arbitrary circle.
+Eight 45-degree radial sectors, a 3×3 nine-cell grid and more detailed mandalas are different constructions. Do not present them as interchangeable. Let the user choose radial sectors or a grid for the exploratory view and retain that selection in its copyable context. A 3×3 grid has three rows and columns; radial mode has eight 45° wedges clockwise from north, centered at 0° with boundaries at ±22.5°. Do not require or silently switch to radial mode when the user chooses a grid. A Brahmasthan is a central area defined by a chosen grid convention, not simply the center point or an arbitrary circle.
 
-There is no universally agreed irregular-plan center. Offer a polygon area centroid as an explicit geometric default, a north-aligned bounding-rectangle midpoint as a comparison, and a recorded manual override. Never call the geometric default the authoritative Vastu center. Show the method and compare whether findings change. A centroid can fall outside a concave footprint: require boundary/center review in that case. Define balcony, terrace, shaft and common-area inclusion explicitly before calculating anything.
+There is no universally agreed irregular-plan center. Offer polygon centroid and north-aligned bounds midpoint as geometric choices, plus a manually movable center. Preserve the original suggested center separately from the current center so the user can compare or reset after moving it. Never call a geometric default the authoritative Vastu center. Show the selected method and center, and compare whether findings change. A centroid can fall outside a concave footprint: require boundary/center review in that case. Define balcony, terrace, shaft and common-area inclusion explicitly before calculating anything.
 
 Use the private apartment boundary and entrance, distinguishing the apartment door from the building gate. Record both entrance location relative to apartment center and outward door-facing bearing; these are different quantities. Room-level subanalysis must identify its separate center and must not replace whole-apartment placement.
 
@@ -29,13 +29,13 @@ Contemporary practitioner explanations consulted 2026-10-29 (not independent val
 
 1. Open a saved apartment; optionally enable Vastu review.
 2. Confirm scope: complete apartment or partial room scan. Whole-apartment findings require a coherent placement of all rooms, including corridors. Separate unaligned sessions cannot establish the full footprint.
-3. Confirm north source (true/magnetic/manual), uncertainty and any independent verification. Manual north preserves the sensor estimate and records who changed it and why.
+3. Confirm north source (true/magnetic/manual), uncertainty and any independent verification. With aligned compass data, the user may adjust recorded north by a clockwise angle; without it, the user may enter an absolute angle clockwise from model -Z (0° points to -Z). Preserve the recorded sensor estimate and uncertainty unchanged; label an absolute manual bearing as user-defined and unverified.
 4. Trace or correct the apartment polygon; identify excluded common areas and included balconies. Show missing or uncertain portions rather than filling them silently.
-5. Review center method and eight sectors. Show an optional, separately labeled 3×3 grid/central area later; do not imply radial sectors define Brahmasthan size.
+5. Choose the exploratory overlay: eight radial sectors or a grid. For grid mode, expose row/column dimensions (3×3 for the current preview) and keep its central cell/region distinct from radial wedges and 64/81-cell mandalas. Let the user review and move the center, showing its method, original suggested location and current location. Display preferences such as center marker, labels and opacity affect presentation only.
 6. Confirm room uses and mark private entrance, toilet versus bathing area, hob/cooking direction, bed head direction and prayer feature where relevant. Scanned object recognition supplies suggestions requiring confirmation.
 7. Display feature overlap across sectors (e.g. kitchen 60% E, 40% SE), not only the centroid sector. Keep feature location and facing direction separate. Let users select a room while retaining the apartment-center overlay.
 8. Show sourced findings as matches preference / conflicts with preference / uncertain / missing information. Separate fixed rental constraints from movable furniture options. No unsupported outcome predictions or demolition recommendations.
-9. Copy analysis context and optionally export annotated plan plus JSON. Copying is explicit, local, and does not send information to any agent automatically.
+9. Copy analysis context and optionally export annotated plan plus JSON. Preserve the selected method, center method, original suggested and current center, grid dimensions, recorded versus overridden north, and visual preferences. Instruct any receiving agent to respect the selected method and distinguish a 3×3 grid from eight 45° wedges; do not always demand radial sectors. Keep original scan/compass data intact alongside optional view settings. Copying is explicit, local, and does not send information to any agent automatically.
 
 ## Uncertainty policy
 
@@ -47,14 +47,15 @@ Improvement procedure: remove magnetic accessories, avoid metal/electrical equip
 
 ## Data and implementation sequence
 
-Add optional versioned `vastuReview` metadata alongside existing scan data: scope/completeness, apartment polygon with holes and inclusion decisions, coordinate frame/units, room transforms, sensor and overridden north with provenance, center method/point, sector definition, confirmed feature polygons/points/orientations, chosen sourced rule profile, uncertainty and missing fields. Keep original sensor observations unchanged.
+Add optional versioned `vastuReview` metadata alongside existing scan data: scope/completeness, apartment polygon with holes and inclusion decisions, coordinate frame/units, room transforms, sensor and overridden north with provenance, selected exploratory method, center method, original suggested and current center, grid dimensions, display settings, sector definition, confirmed feature polygons/points/orientations, chosen sourced rule profile, uncertainty and missing fields. Keep original scan and sensor observations unchanged.
 
-Phase 1: apartment footprint editing/confirmation, alignment checks, center and eight-sector overlay in plan view; no automatic verdicts.
+Phase 1 (browser preview): configurable exploratory grid/radial overlay, editable center and explicit center alternatives, recorded/manual north selection, and visual settings over the measured room polygon; no automatic verdicts. This room-only preview is not apartment analysis.
+Phase 1 (future native viewer): port the optional controls and overlay after the browser interaction and settings shape are established.
 Phase 2: confirmed room/fixture semantics, overlap calculations, uncertainty sensitivity, copyable context.
 Phase 3: versioned sourced rule profiles and rental comparison. Add optional 3D sector overlay after the plan workflow is clear.
 
-Validation when implementing: rectangles and concave plans; polygon holes; centroid outside footprint; room transforms and rotated north; 359°/0° wrap; features crossing sector boundaries; ±error crossing boundaries; incomplete/unaligned apartments; no compass; manual override provenance; default-off persistence behavior; all existing scan/view/export paths with optional fields absent. Device UI tests require exploration under the applicable mobile-testing rules.
+Validation when implementing: rectangles and concave plans; polygon holes; centroid outside footprint; room transforms and rotated north; grid dimensions and grid/radial distinction; 359°/0° wrap; features crossing sector boundaries; ±error crossing boundaries; incomplete/unaligned apartments; absent compass with user-defined north; override provenance; preservation of original and moved centers; default-off persistence behavior; unchanged scan and compass data; all existing scan/view/export paths with optional fields absent. Device UI tests require exploration under the applicable mobile-testing rules.
 
 ## First browser preview
 
-Open `/inspect.html` with a converted room JSON, choose **Floor plan**, then enable **Vastu preview**. The toggle resets off whenever a file loads or the page reloads. It uses only the measured room polygon and recorded north, shows the geometric center and eight clipped sectors, and explicitly marks partial-room scope. The overlay does not evaluate rules or confirm an apartment boundary. **Copy review context** copies the converted geometry and observations with analysis instructions; a selectable text fallback is available if clipboard access fails. No content is sent automatically. This preview is browser-only; the native iPhone viewer currently has the separate Recorded north overlay.
+Open `/inspect.html` with a converted room JSON, choose **Floor plan**, then enable **Vastu preview**. The toggle resets off whenever a file loads or the page reloads. The browser preview exposes the selected exploratory method, center, grid dimensions, north choice, and visual settings; it uses only the measured room polygon and explicitly marks partial-room scope. The overlay does not evaluate rules or confirm an apartment boundary. **Copy review context** copies converted geometry and observations, preserves raw scan data and chosen view settings, and tells a receiving agent to honor the selected method; a selectable text fallback is available if clipboard access fails. No content is sent automatically. This preview is browser-only; native iPhone support remains future work, and the native viewer currently has the separate Recorded north overlay.

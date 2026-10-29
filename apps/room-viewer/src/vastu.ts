@@ -3,9 +3,35 @@ import * as THREE from 'three';
 export type Point2 = readonly [number, number];
 export interface VastuSector { label: string; pieces: Point2[][] }
 export interface VastuPreview { center: Point2; centerInside: boolean; sectors: VastuSector[] }
+export type VastuMethod = 'sectors' | 'grid';
+export type VastuCenterMode = 'centroid' | 'bounds' | 'manual';
+export interface VastuViewSettings {
+  method: VastuMethod; centerMode: VastuCenterMode; center: Point2;
+  suggestedCenter?: Point2;
+  gridWidth: number; gridDepth: number; northOverrideDegrees?: number; northSource: string;
+  northMode?: 'recorded-adjustment' | 'manual-absolute'; effectiveNorth?: Point2;
+  showCenter: boolean; showLabels: boolean; opacity: number;
+}
+
+export function polygonCentroid(polygon: number[][]): Point2 | undefined {
+  const ring = polygon.map(p => [p[0], p[1]] as Point2);
+  if (ring.length < 3 || ring.some(p => !p.every(Number.isFinite))) return;
+  const area2 = ring.reduce((s,p,i) => { const q=ring[(i+1)%ring.length]; return s+p[0]*q[1]-q[0]*p[1]; },0);
+  if (Math.abs(area2) < 1e-8) return;
+  return [ring.reduce((s,p,i)=>{const q=ring[(i+1)%ring.length],c=p[0]*q[1]-q[0]*p[1];return s+(p[0]+q[0])*c;},0)/(3*area2),
+    ring.reduce((s,p,i)=>{const q=ring[(i+1)%ring.length],c=p[0]*q[1]-q[0]*p[1];return s+(p[1]+q[1])*c;},0)/(3*area2)];
+}
+export function boundsCenter(polygon: number[][], north: readonly [number, number] = [0, -1]): Point2 | undefined {
+  if (!polygon.length || polygon.some(p => !p.slice(0,2).every(Number.isFinite))) return;
+  const len=Math.hypot(...north);if(!Number.isFinite(len)||len<1e-8)return;
+  const n:[number,number]=[north[0]/len,north[1]/len],e:[number,number]=[-n[1],n[0]];
+  const ns=polygon.map(p=>p[0]*n[0]+p[1]*n[1]), es=polygon.map(p=>p[0]*e[0]+p[1]*e[1]);
+  const midN=(Math.min(...ns)+Math.max(...ns))/2,midE=(Math.min(...es)+Math.max(...es))/2;
+  return [e[0]*midE+n[0]*midN,e[1]*midE+n[1]*midN];
+}
 
 /** Compute eight north-aligned 45° wedges clipped to a simple floor polygon. */
-export function computeVastuPreview(polygon: number[][], north: readonly [number, number]): VastuPreview | undefined {
+export function computeVastuPreview(polygon: number[][], north: readonly [number, number], selectedCenter?: Point2): VastuPreview | undefined {
   if (polygon.length < 3 || !polygon.every(p => p.length >= 2 && Number.isFinite(p[0]) && Number.isFinite(p[1]))) return;
   const ring: Point2[] = polygon.map(p => [p[0], p[1]]);
   if (ring.length > 3 && same(ring[0], ring[ring.length - 1])) ring.pop();
@@ -14,10 +40,8 @@ export function computeVastuPreview(polygon: number[][], north: readonly [number
     const q = ring[(i + 1) % ring.length]; return sum + p[0] * q[1] - q[0] * p[1];
   }, 0) / 2;
   if (Math.abs(signedArea) < 1e-8) return;
-  const centroid: Point2 = [ring.reduce((s, p, i) => s + (p[0] + ring[(i + 1) % ring.length][0]) * (p[0] * ring[(i + 1) % ring.length][1] - ring[(i + 1) % ring.length][0] * p[1]), 0) / (6 * signedArea),
-    ring.reduce((s, p, i) => s + (p[1] + ring[(i + 1) % ring.length][1]) * (p[0] * ring[(i + 1) % ring.length][1] - ring[(i + 1) % ring.length][0] * p[1]), 0) / (6 * signedArea)];
+  const centroid = selectedCenter ?? polygonCentroid(polygon)!;
   const centerInside = pointInPolygon(centroid, ring);
-  if (!centerInside) return { center: centroid, centerInside, sectors: [] };
   const vectors = ring.map(p => new THREE.Vector2(p[0], p[1]));
   // ShapeUtils expects a simple ring and returns triangles whose union is the polygon.
   const triangles = THREE.ShapeUtils.triangulateShape(vectors, []);

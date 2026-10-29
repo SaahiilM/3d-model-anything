@@ -14,10 +14,19 @@ body { margin: 0; background: #142126; color: #e3edf0; font: 13px/1.5 system-ui,
 #inspect-plan svg { width: 100%; height: min(65vh, 700px); touch-action: none; }
 #inspect-plan header { max-width: 900px; margin: auto; }
 #inspect-plan aside { max-width: 900px; margin: auto; }
-.vastu-controls { position: sticky; top: 0; z-index: 2; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; max-width: 900px; margin: -12px auto 12px; padding: 10px 12px; background: #f6f4eef2; border: 1px solid #b5c2b9; border-radius: 8px; }
+.vastu-controls { position: static; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; max-width: 900px; margin: -12px auto 12px; padding: 10px 12px; background: #f6f4eef2; border: 1px solid #b5c2b9; border-radius: 8px; }
 .vastu-controls button { flex: none; padding: 7px 10px; color: #243c43; border: 1px solid #52747a; border-radius: 6px; background: #e8efea; cursor: pointer; font: inherit; }
 .vastu-controls button[aria-pressed=true] { background: #c4ddd0; }
 .vastu-controls button:disabled { cursor: default; opacity: .65; }
+.vastu-settings { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; margin: 0; padding: 8px; border: 1px solid #b5c2b9; border-radius: 6px; }
+.vastu-settings[hidden] { display: none; }
+.vastu-settings legend { padding: 0 5px; font-weight: 650; }
+.vastu-field { display: flex; flex-direction: column; gap: 3px; min-width: 112px; font-size: 11px; }
+.vastu-field input:not([type=checkbox]):not([type=range]), .vastu-field select { min-height: 32px; padding: 4px 6px; color: #243c43; border: 1px solid #819995; border-radius: 4px; background: #fff; font: inherit; }
+.vastu-field input[type=checkbox] { width: 20px; height: 20px; }
+.vastu-settings button { min-height: 32px; }
+.vastu-overlay { pointer-events: none; }
+.vastu-labels { pointer-events: none; }
 .vastu-note { margin: 0; font-size: 12px; }
 .vastu-sectors { pointer-events: none; }
 .vastu-off { display: none; }

@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { RoomLayout } from '../../../packages/room-runtime/types';
 import { CompassOverlay, compassDescription, hasNorth } from './compass';
 import { showLayout } from './layout';
-import { computeVastuPreview } from './vastu';
+import { boundsCenter, computeVastuPreview, polygonCentroid, type VastuViewSettings } from './vastu';
 import { makeVastuAgentContext } from './vastu-context';
 import { disposeObjects } from '../../../packages/room-runtime/dispose';
 import './inspect.css';
@@ -111,61 +111,100 @@ function addVastuPreview(data: MeasuredLayout) {
   const toolbar = document.createElement('div'); toolbar.className = 'vastu-controls';
   const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Vastu preview';
   button.setAttribute('aria-pressed', 'false');
+  const settingsPanel = document.createElement('fieldset'); settingsPanel.className = 'vastu-settings'; settingsPanel.hidden = true;
+  const legend = document.createElement('legend'); legend.textContent = 'Exploratory overlay settings'; settingsPanel.append(legend);
   const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy review context';
   copy.hidden = true;
   const fallback = document.createElement('textarea'); fallback.className = 'vastu-copy-fallback'; fallback.readOnly = true;
   fallback.setAttribute('aria-label', 'Copyable local review context'); fallback.hidden = true;
   const note = document.createElement('p'); note.className = 'vastu-note';
   note.hidden = true;
-  note.textContent = 'Room preview — not whole-apartment Vastu. No Vastu verdicts are provided.';
+  note.textContent = 'Optional user-defined exploratory view. It does not provide Vastu verdicts or establish a universal center.';
   const compass = data.compass;
-  const preview = hasNorth(compass) ? computeVastuPreview(data.polygon, [compass.north[0], compass.north[2]]) : undefined;
-  let unavailable = '';
-  if (!hasNorth(compass)) unavailable = `Unavailable: ${compass?.reason ?? 'no usable aligned true or magnetic north was recorded.'}`;
-  else if (!preview) unavailable = 'Unavailable: the floor polygon cannot produce a reliable area centroid.';
-  else if (!preview.centerInside) unavailable = 'Unavailable: the polygon area centroid falls outside this concave floor outline.';
-  if (unavailable) { button.disabled = true; note.hidden = false; note.textContent += ` ${unavailable}`; }
-  else if (preview && hasNorth(compass)) {
-    const error = Math.ceil(compass.accuracyDegrees);
-    note.textContent += ` Center: polygon area centroid (room-local; preview only). North: recorded ${compass.reference} north, ±${error}° estimated uncertainty.`;
-    if (error > 10) note.textContent += ' Uncertainty exceeds 10°; sector boundaries may shift, so treat this overlay as especially approximate.';
-    const svg = plan.querySelector('svg');
-    if (svg) {
-      const sectors = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      sectors.classList.add('vastu-sectors', 'vastu-off'); sectors.setAttribute('aria-label', 'Eight north-aligned directional sectors');
-      const colors = ['#4c99b8','#659e88','#b9a64e','#c6854d','#bc6661','#a66a9c','#687caf','#4c95a0'];
-      for (const [index, sector] of preview.sectors.entries()) {
-        const group = document.createElementNS(svg.namespaceURI, 'g'); group.setAttribute('fill', colors[index]); group.setAttribute('fill-opacity', '.19');
-        for (const piece of sector.pieces) {
-          const path = document.createElementNS(svg.namespaceURI, 'polygon');
-          path.setAttribute('points', piece.map(p => p.join(',')).join(' ')); group.append(path);
-        }
-        sectors.append(group);
-      }
-      const annotations = document.createElementNS(svg.namespaceURI, 'g'); annotations.classList.add('vastu-annotations', 'vastu-off');
-      const marker = document.createElementNS(svg.namespaceURI, 'circle'); marker.setAttribute('cx', String(preview.center[0])); marker.setAttribute('cy', String(preview.center[1])); marker.setAttribute('r', '.08'); marker.setAttribute('class', 'vastu-center');
-      annotations.append(marker);
-      const xs = data.polygon.map(p => p[0]), ys = data.polygon.map(p => p[1]);
-      const radius = Math.max(Math.max(...xs)-Math.min(...xs), Math.max(...ys)-Math.min(...ys)) * .24;
-      for (let i=0; i<8; i++) {
-        const a = i*Math.PI/4, nx=compass.north[0], nz=compass.north[2];
-        const x=preview.center[0]+radius*(nx*Math.cos(a)-nz*Math.sin(a));
-        const y=preview.center[1]+radius*(nz*Math.cos(a)+nx*Math.sin(a));
-        const text=document.createElementNS(svg.namespaceURI,'text'); text.setAttribute('x',String(x));text.setAttribute('y',String(y));text.setAttribute('class','vastu-label');text.setAttribute('text-anchor','middle');text.textContent=sectorLabel(i);annotations.append(text);
-      }
-      const outlineCount = data.rooms?.length || 1;
-      svg.insertBefore(sectors, svg.children[outlineCount] ?? null);
-      svg.append(annotations);
-      button.addEventListener('click', () => {
-        vastuEnabled = !vastuEnabled; button.setAttribute('aria-pressed', String(vastuEnabled));
-        sectors.classList.toggle('vastu-off', !vastuEnabled);
-        annotations.classList.toggle('vastu-off', !vastuEnabled);
-        note.hidden = !vastuEnabled; copy.hidden = !vastuEnabled;
-      });
-    }
+  const suggestedCenter = polygonCentroid(data.polygon) ?? boundsCenter(data.polygon) ?? [0,0];
+  const bboxCenter = boundsCenter(data.polygon, hasNorth(compass) ? [compass.north[0],compass.north[2]] : [0,-1]) ?? suggestedCenter;
+  const orientationMetrics = (n: readonly [number,number]) => { const len=Math.hypot(...n)||1,nx=n[0]/len,nz=n[1]/len,ex=-nz,ez=nx;const east=data.polygon.map(p=>p[0]*ex+p[1]*ez),northing=data.polygon.map(p=>p[0]*nx+p[1]*nz);return {width:Math.max(.1,Math.max(...east)-Math.min(...east)),depth:Math.max(.1,Math.max(...northing)-Math.min(...northing))}; };
+  const initialMetrics=orientationMetrics(hasNorth(compass)?[compass.north[0],compass.north[2]]:[0,-1]);
+  const gridWidth = initialMetrics.width, gridDepth = initialMetrics.depth;
+  const settings: VastuViewSettings = { method:'sectors', centerMode:'bounds', center:bboxCenter, suggestedCenter:bboxCenter,
+    gridWidth, gridDepth, northSource: compass?.sourceFile ?? 'not recorded', showCenter:true, showLabels:true, opacity:.2 };
+  function field(labelText: string, control: HTMLElement) { const label=document.createElement('label');label.className='vastu-field';label.append(document.createTextNode(labelText),control);settingsPanel.append(label);return control; }
+  const method = field('Layout', document.createElement('select')) as HTMLSelectElement;
+  method.add(new Option('Eight radial sectors (45°)','sectors')); method.add(new Option('North-aligned 3 × 3 grid','grid'));
+  const centerMode = field('Suggested center', document.createElement('select')) as HTMLSelectElement;
+  centerMode.add(new Option('North-aligned bounding-box center','bounds'));centerMode.add(new Option('Polygon area centroid','centroid'));centerMode.add(new Option('Manual center','manual'));
+  const centerX=field('Center X (m)',document.createElement('input')) as HTMLInputElement; centerX.type='number';centerX.step='.01';
+  const centerZ=field('Center Z (m)',document.createElement('input')) as HTMLInputElement; centerZ.type='number';centerZ.step='.01';
+  const width=field('Grid width (m)',document.createElement('input')) as HTMLInputElement;width.type='number';width.min='.1';width.step='.1';
+  const depth=field('Grid depth (m)',document.createElement('input')) as HTMLInputElement;depth.type='number';depth.min='.1';depth.step='.1';
+  const north=field(hasNorth(compass)?'North adjustment clockwise (°)':'User-defined north angle clockwise from model -Z (°)',document.createElement('input')) as HTMLInputElement;north.type='number';north.step='1';
+  north.value='0';north.title=hasNorth(compass)?'Adjustment applied to the recorded north vector; the recorded source remains unchanged.':'User-defined and unverified direction; no compass measurement was recorded.';
+  const opacity=field('Overlay opacity',document.createElement('input')) as HTMLInputElement;opacity.type='range';opacity.min='5';opacity.max='60';opacity.value='20';
+  const showCenter=field('Show center marker',document.createElement('input')) as HTMLInputElement;showCenter.type='checkbox';showCenter.checked=true;
+  const showLabels=field('Show labels',document.createElement('input')) as HTMLInputElement;showLabels.type='checkbox';showLabels.checked=true;
+  const moveCenter=document.createElement('button');moveCenter.type='button';moveCenter.textContent='Move center';moveCenter.setAttribute('aria-pressed','false');
+  const reset=document.createElement('button');reset.type='button';reset.textContent='Reset suggestions';reset.title='Restore the bounding-box center suggestion and zero north adjustment.';
+  const fitGrid=document.createElement('button');fitGrid.type='button';fitGrid.textContent='Fit grid to outline';fitGrid.title='Set grid width and depth to the floor polygon bounds along the current north-aligned axes.';
+  settingsPanel.append(moveCenter,reset,fitGrid);
+  const svg=plan.querySelector('svg');
+  const overlayGroup=svg ? document.createElementNS(svg.namespaceURI,'g') : undefined;
+  overlayGroup?.setAttribute('class','vastu-overlay vastu-off');
+  const outlineCount=data.rooms?.length||1;if(svg&&overlayGroup)svg.insertBefore(overlayGroup,svg.children[outlineCount]??null);
+  const annotationsGroup=svg ? document.createElementNS(svg.namespaceURI,'g') : undefined;
+  annotationsGroup?.setAttribute('class','vastu-annotations vastu-off');
+  if(svg&&annotationsGroup)svg.append(annotationsGroup);
+  let dragging=false;
+  let gridSizeEdited=false;
+  function invalidateCopiedContext() { fallback.hidden=true;fallback.value='';copy.textContent='Copy review context'; }
+  function currentNorth(): [number,number] | undefined {
+    const angle=Number(north.value)*Math.PI/180;
+    if(hasNorth(compass)) { const nx=compass.north[0],nz=compass.north[2];return [nx*Math.cos(angle)-nz*Math.sin(angle),nz*Math.cos(angle)+nx*Math.sin(angle)]; }
+    if(north.value==='')return;
+    return [Math.sin(angle),-Math.cos(angle)];
   }
+  let centerIsInside=true;
+  function updateNote() { note.textContent=`Optional user-defined exploratory view for this room scan only · ${settings.method==='grid'?'3 × 3 north-aligned grid':'eight radial 45° sectors'} · ${centerMode.options[centerMode.selectedIndex].text} at X ${settings.center[0].toFixed(2)} m, Z ${settings.center[1].toFixed(2)} m. ${settings.method==='grid'?'The middle grid cell is only the center cell of this user-selected grid; it is not a universal Brahmasthan definition.':''} ${hasNorth(compass)?`North uses recorded ${compass.reference} north with a ${settings.northOverrideDegrees??0}° clockwise user adjustment; recorded source and estimated ±${Math.ceil(compass.accuracyDegrees)}° uncertainty are retained.${compass.accuracyDegrees>10?' Uncertainty exceeds 10°, so sector boundaries may shift materially.':''}`:'North is user-defined and unverified; no compass direction was recorded. 0° points toward model -Z and increasing angles turn clockwise.'} ${centerIsInside?'':'The selected center is outside the floor outline; this remains a user-defined exploratory view.'} No Vastu verdicts are provided.`; }
+  function redraw() {
+    if(!svg||!overlayGroup)return;
+    settings.method=method.value as VastuViewSettings['method'];settings.centerMode=centerMode.value as VastuViewSettings['centerMode'];
+    settings.gridWidth=Math.max(.1,Number(width.value)||gridWidth);settings.gridDepth=Math.max(.1,Number(depth.value)||gridDepth);
+    settings.northOverrideDegrees=Number(north.value)||0;settings.showCenter=showCenter.checked;settings.showLabels=showLabels.checked;settings.opacity=Number(opacity.value)/100;
+    settings.center=[Number(centerX.value)||0,Number(centerZ.value)||0];
+    const n=currentNorth();settings.northMode=hasNorth(compass)?'recorded-adjustment':'manual-absolute';settings.effectiveNorth=n?[n[0],n[1]]:undefined;overlayGroup.replaceChildren();annotationsGroup?.replaceChildren();
+    if(!n) return;
+    const preview=computeVastuPreview(data.polygon,n,settings.center); if(!preview)return;centerIsInside=preview.centerInside;
+    const clipId=`vastu-clip-${Math.random().toString(36).slice(2)}`;
+    const defs=document.createElementNS(svg.namespaceURI,'defs'),clip=document.createElementNS(svg.namespaceURI,'clipPath');clip.id=clipId;
+    const polygon=document.createElementNS(svg.namespaceURI,'polygon');polygon.setAttribute('points',data.polygon.map(p=>p.join(',')).join(' '));clip.append(polygon);defs.append(clip);overlayGroup.append(defs);
+    const drawing=document.createElementNS(svg.namespaceURI,'g');drawing.setAttribute('clip-path',`url(#${clipId})`);overlayGroup.append(drawing);
+    const colors=['#4c99b8','#659e88','#b9a64e','#c6854d','#bc6661','#a66a9c','#687caf','#4c95a0'];
+    if(settings.method==='sectors') for(const [i,sector] of preview.sectors.entries()) for(const piece of sector.pieces){const poly=document.createElementNS(svg.namespaceURI,'polygon');poly.setAttribute('points',piece.map(p=>p.join(',')).join(' '));poly.setAttribute('fill',colors[i]);poly.setAttribute('fill-opacity',String(settings.opacity));drawing.append(poly);}
+    else {
+      const [nx,nz]=n, east:[number,number]=[-nz,nx];const c=settings.center;
+      const local=(u:number,v:number):[number,number]=>[c[0]+east[0]*u-nx*v,c[1]+east[1]*u-nz*v];
+      const border=[local(-settings.gridWidth/2,-settings.gridDepth/2),local(settings.gridWidth/2,-settings.gridDepth/2),local(settings.gridWidth/2,settings.gridDepth/2),local(-settings.gridWidth/2,settings.gridDepth/2)];
+      const grid=document.createElementNS(svg.namespaceURI,'polygon');grid.setAttribute('points',border.map(p=>p.join(',')).join(' '));grid.setAttribute('fill','#c49b4a');grid.setAttribute('fill-opacity',String(settings.opacity));grid.setAttribute('stroke','#604d2a');grid.setAttribute('stroke-width','.025');drawing.append(grid);
+      for(const v of [-settings.gridDepth/6,settings.gridDepth/6]){const line=document.createElementNS(svg.namespaceURI,'line'),a=local(-settings.gridWidth/2,v),b=local(settings.gridWidth/2,v);line.setAttribute('x1',String(a[0]));line.setAttribute('y1',String(a[1]));line.setAttribute('x2',String(b[0]));line.setAttribute('y2',String(b[1]));line.setAttribute('stroke','#604d2a');line.setAttribute('stroke-width','.025');drawing.append(line);}
+      for(const u of [-settings.gridWidth/6,settings.gridWidth/6]){const line=document.createElementNS(svg.namespaceURI,'line'),a=local(u,-settings.gridDepth/2),b=local(u,settings.gridDepth/2);line.setAttribute('x1',String(a[0]));line.setAttribute('y1',String(a[1]));line.setAttribute('x2',String(b[0]));line.setAttribute('y2',String(b[1]));line.setAttribute('stroke','#604d2a');line.setAttribute('stroke-width','.025');drawing.append(line);}
+      if(settings.showLabels&&annotationsGroup){const names=['NW','N','NE','W','Grid center','E','SW','S','SE'];for(let row=0;row<3;row++)for(let col=0;col<3;col++){const [x,y]=local((col-1)*settings.gridWidth/3,(row-1)*settings.gridDepth/3),label=document.createElementNS(svg.namespaceURI,'text');label.setAttribute('x',String(x));label.setAttribute('y',String(y));label.setAttribute('class','vastu-label');label.setAttribute('text-anchor','middle');label.textContent=names[row*3+col];annotationsGroup.append(label);}}
+    }
+    if(settings.showCenter&&annotationsGroup){const dot=document.createElementNS(svg.namespaceURI,'circle');dot.setAttribute('cx',String(settings.center[0]));dot.setAttribute('cy',String(settings.center[1]));dot.setAttribute('r','.08');dot.setAttribute('class','vastu-center');annotationsGroup.append(dot);}
+    if(settings.showLabels&&settings.method==='sectors'&&annotationsGroup){const labels=document.createElementNS(svg.namespaceURI,'g');labels.setAttribute('class','vastu-labels');const radius=Math.max(gridWidth,gridDepth)*.24;for(let i=0;i<8;i++){const a=i*Math.PI/4,nx=n[0],nz=n[1],x=settings.center[0]+radius*(nx*Math.cos(a)-nz*Math.sin(a)),y=settings.center[1]+radius*(nz*Math.cos(a)+nx*Math.sin(a));const t=document.createElementNS(svg.namespaceURI,'text');t.setAttribute('x',String(x));t.setAttribute('y',String(y));t.setAttribute('class','vastu-label');t.setAttribute('text-anchor','middle');t.textContent=sectorLabel(i);labels.append(t);}annotationsGroup.append(labels);}updateNote();
+  }
+  function updateControls() { const n=currentNorth()??[0,-1],orientedBounds=boundsCenter(data.polygon,n)??bboxCenter;const c=centerMode.value==='centroid'?(polygonCentroid(data.polygon)??orientedBounds):centerMode.value==='bounds'?orientedBounds:settings.center;settings.center=c;centerX.value=c[0].toFixed(2);centerZ.value=c[1].toFixed(2);const manual=centerMode.value==='manual';centerX.disabled=centerZ.disabled=!manual;redraw(); }
+  centerMode.addEventListener('change',()=>{invalidateCopiedContext();updateControls();});method.addEventListener('change',()=>{invalidateCopiedContext();redraw();});[centerX,centerZ,opacity,showCenter,showLabels].forEach(el=>el.addEventListener('input',()=>{invalidateCopiedContext();redraw();}));[width,depth].forEach(el=>el.addEventListener('input',()=>{gridSizeEdited=true;invalidateCopiedContext();redraw();}));north.addEventListener('input',()=>{invalidateCopiedContext();const n=currentNorth()??[0,-1],m=orientationMetrics(n);width.placeholder=m.width.toFixed(2);depth.placeholder=m.depth.toFixed(2);if(!gridSizeEdited){width.value=m.width.toFixed(2);depth.value=m.depth.toFixed(2);}if(centerMode.value!=='manual')updateControls();else redraw();});
+  fitGrid.addEventListener('click',()=>{const m=orientationMetrics(currentNorth()??[0,-1]);width.value=m.width.toFixed(2);depth.value=m.depth.toFixed(2);gridSizeEdited=true;invalidateCopiedContext();redraw();});
+  reset.addEventListener('click',()=>{invalidateCopiedContext();centerMode.value='bounds';settings.center=settings.suggestedCenter??bboxCenter;north.value='0';updateControls();});
+  moveCenter.addEventListener('click',()=>{dragging=!dragging;moveCenter.setAttribute('aria-pressed',String(dragging));moveCenter.textContent=dragging?'Finish moving center':'Move center';});
+  function placeCenter(event: PointerEvent){if(!svg)return;const matrix=svg.getScreenCTM();if(!matrix)return;const p=svg.createSVGPoint();p.x=event.clientX;p.y=event.clientY;const q=p.matrixTransform(matrix.inverse());settings.center=[q.x,q.y];centerMode.value='manual';centerX.disabled=centerZ.disabled=false;centerX.value=q.x.toFixed(2);centerZ.value=q.y.toFixed(2);redraw();}
+  svg?.addEventListener('pointerdown',event=>{if(!dragging)return;event.preventDefault();event.stopImmediatePropagation();invalidateCopiedContext();svg.setPointerCapture(event.pointerId);placeCenter(event);},{capture:true});
+  svg?.addEventListener('pointermove',event=>{if(dragging&&svg.hasPointerCapture(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();placeCenter(event);}},{capture:true});
+  svg?.addEventListener('pointerup',event=>{if(dragging&&svg.hasPointerCapture(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();svg.releasePointerCapture(event.pointerId);}},{capture:true});
+  svg?.addEventListener('pointercancel',event=>{if(dragging&&svg.hasPointerCapture(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();svg.releasePointerCapture(event.pointerId);}},{capture:true});
+  width.value=String(gridWidth.toFixed(2));depth.value=String(gridDepth.toFixed(2));updateControls();
+  button.addEventListener('click',()=>{vastuEnabled=!vastuEnabled;button.setAttribute('aria-pressed',String(vastuEnabled));settingsPanel.hidden=!vastuEnabled;overlayGroup?.classList.toggle('vastu-off',!vastuEnabled);annotationsGroup?.classList.toggle('vastu-off',!vastuEnabled);note.hidden=!vastuEnabled;copy.hidden=!vastuEnabled;if(!vastuEnabled)invalidateCopiedContext();});
   copy.addEventListener('click', async () => {
-    const context = makeVastuAgentContext(data, { scope: 'partial-room' });
+    const context = makeVastuAgentContext(data, { scope: 'partial-room', viewSettings: settings });
     fallback.value = context; fallback.hidden = false;
     try {
       await navigator.clipboard.writeText(context);
@@ -176,7 +215,7 @@ function addVastuPreview(data: MeasuredLayout) {
       note.textContent = 'Clipboard access is unavailable. The complete review context is shown below for manual copying.';
     }
   });
-  toolbar.append(button, copy, note); plan.prepend(toolbar); plan.append(fallback);
+  toolbar.append(button, settingsPanel, copy, note); plan.prepend(toolbar); plan.append(fallback);
 }
 
 function sectorLabel(index: number) { return ['N','NE','E','SE','S','SW','W','NW'][index]; }
