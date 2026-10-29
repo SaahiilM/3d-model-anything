@@ -32,7 +32,13 @@ Converted `compass.samples` retains the original observations in **session coord
 
 Keep the converted layout including `compass` when implementing the rebuilt `RoomModule`. The standard viewer reads `BuiltRoom.layout.compass` to display 3D wall/window labels, a north indicator, and plan bearings. If geometry is rotated again, rotate north with it. Missing/uncertain readings remain unlabeled. Model axes do not establish geographic direction. Surface bearing numbers remain valid when geometry and north rotate together.
 
-## Device validation still required
+For immediate inspection before detailed reconstruction, run the viewer and open `/inspect.html`. Select the converted `room.json` with **Open room JSON**, then switch between **3D** and **Floor plan**. This shows the measured room/furniture bounds, recorded north, wall/window bearings and uncertainty. File selection stays in the browser and does not upload the scan. Detailed reconstruction still uses the agent workflow.
+
+## Validation and device checks
+
+A physical iPhone 16 Pro Max scan recorded 166 compass observations (165 true north), 44 photos, 275 depth frames and four walls. Conversion retained the readings and produced a true-north alignment with approximately 20° estimated uncertainty. The local 3D/plan inspector displayed the derived bearings. These captures stay in ignored local folders; no private scan is distributed with the source.
+
+During this device check on iOS 27.2, both this app and Apple's Measure showed a black camera view while Device Hub screen streaming was active. Scanning worked after the stream was closed. If this happens, close Device Hub and scan using the phone's UI. USB installation and command-line file transfer can be used without screen streaming.
 
 Simulator compilation cannot validate the compass/LiDAR combination. Before relying on a tour scan, compare a known wall/window bearing with the camera readout at several phone tilts, then review exported directions after reconstruction and after a room rotation. Also check denied Location permission, magnetic fallback, pause/resume, interruption recovery and room-only export/import on the iPhone.
 
