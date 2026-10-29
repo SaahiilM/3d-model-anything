@@ -8,6 +8,8 @@ Location While Using the App lets Core Location correct magnetic north to true n
 
 The recorder keeps up to two observations per second, paired to the nearest AR pose within 150 ms. It buffers two seconds of fresh poses while tracking is stable and recording is active. Pausing and room/session completion stop the sensors; recovery clears pose input. Readings are saved with the room/session manifest, like the photo index.
 
+Compass sensors and optional mesh/depth reconfiguration wait until tracking is stable. Saved diagnostics and the attached console report camera/location authorization, tracking state, landmark counts and sampled camera brightness. Brightness diagnostics store aggregate values only, not image pixels. `cameraAuthorization = 3` means camera access is authorized; `locationAuthorization = 4` means Location While Using the App.
+
 `CLHeading` angles describe the portrait top edge, which is not the rear camera's viewing direction in an upright scan. The recorder transforms the three-dimensional magnetic field using `ARCamera.viewMatrix(for: .portrait).inverse`, projects onto the session horizontal plane, and applies true-minus-magnetic declination when available. Original readings and transforms stay inspectable. Compass updates do not rotate live RoomPlan geometry.
 
 ## Export
