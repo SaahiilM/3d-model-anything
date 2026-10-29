@@ -11,6 +11,10 @@ rebuild pipeline (`scan-to-threejs` skill) can use directly. Per room it records
 
 Requires an iPhone or iPad **with LiDAR** running iOS 17+.
 
+This fork also records compass observations while scanning. Location permission enables true-north correction; without a usable location, observations are explicitly magnetic. The capture screen shows the camera bearing and estimated sensor accuracy. Geographic coordinates are not saved. See [compass capture](../../docs/compass-capture.md).
+
+The updated privacy policy is bundled offline. Publish this fork's generated `release/site/privacy.html` and set its real HTTPS URL before App Store distribution; this development build leaves the online privacy link unset.
+
 ## Build
 
 ```sh
@@ -62,6 +66,7 @@ Documents/Houses/<house>/
     photos/photos.json     [{ file, room, timestamp, width, height, transform, intrinsics, tracking,
                               manual, exposure, blurPixels, pass, highRes, camera }]
     photos/NNNN.jpg        up to 3024 px long edge, sensor orientation (EXIF 6)
+    compass/headings.json  optional compass observations paired with AR camera/device poses
     depth/frames.json      [{ file, confidence, rgb, rgbIntrinsics, camera, room, timestamp, width, height, transform, intrinsics }]
     depth/NNNNN.f16z       256×192 Float16 depth (m), raw DEFLATE: zlib.decompress(data, -15)
     depth/NNNNN.conf       256×192 UInt8 confidence (0–2)
@@ -86,6 +91,8 @@ out a device tracking failure; preserve the failing session and correlate its ti
 `manifest.diagnostics`: RoomPlan's and the scan's AR configurations, frame-to-frame world jumps,
 white balance, an event log (tracking / mapping status changes, pauses, map saves), how
 relocalization went (seconds to *normal* / *verified*, residual) and periodic live-vs-saved mesh checks.
+
+Optional manifest fields `compass` and `compassSampleCount` describe the observations. Photo `compassTimestamp` links the nearest observation within one second. North vectors remain in the original session frame and must receive the same rotation as geometry. Room-only exports filter observations by original room index. Existing v5 bundles without compass fields remain supported.
 
 ## Launch arguments (developer)
 

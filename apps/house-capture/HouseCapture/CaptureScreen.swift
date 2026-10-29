@@ -120,6 +120,7 @@ struct CaptureScreen: View {
             }
             Text("\(controller.rooms.count) room\(controller.rooms.count == 1 ? "" : "s") · \(controller.photoCount) photos")
               .font(.caption.monospacedDigit())
+            if scanning { CompassCaptureStatus(recorder: controller.compass) }
             if controller.phase != .relocalizing {
               HStack(spacing: 6) {
                 AlignmentBadge(alignment: controller.alignment)
