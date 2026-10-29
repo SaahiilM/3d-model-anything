@@ -47,3 +47,9 @@ Simulator compilation cannot validate the compass/LiDAR combination. Before rely
 Indoor magnetic fields can bias even consistent readings. Displayed uncertainty reflects sensor-reported accuracy and observed disagreement; it cannot establish that nearby metal introduced no systematic error.
 
 Apple references: [CLHeading](https://developer.apple.com/documentation/corelocation/clheading), [true heading](https://developer.apple.com/documentation/corelocation/clheading/trueheading), [heading accuracy](https://developer.apple.com/documentation/corelocation/clheading/headingaccuracy), [camera view matrix](https://developer.apple.com/documentation/arkit/arcamera/viewmatrix(for:)).
+
+## Native review
+
+In the native saved-scan 3D/mesh viewer, open the filter menu and enable **Recorded north** (off by default). Valid recorded observations produce an orange north arrow for each visible room, labeled true/magnetic and estimated uncertainty. North receives the same session-to-house rotation as the mesh. Scans without usable readings leave the toggle disabled; review never requests Location.
+
+See [optional Vastu review plan](vastu-mode-plan.md) and [copyable agent context template](vastu-agent-context.md) for the proposed apartment-analysis workflow.

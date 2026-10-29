@@ -1,0 +1,54 @@
+# Optional Vastu review — proposed plan
+
+Status: design proposal, not an implemented Vastu analysis feature.
+
+## Purpose and boundaries
+
+Help compare rentals against explicitly chosen traditional Vastu preferences. Directional measurements and geometry are facts with uncertainty; interpretations are traditional preferences, not scientifically established predictions about health, wealth or luck. Do not generate a universal compliance percentage.
+
+Vastu review defaults off on each opening. Direction capture is separately optional and defaults off on every capture session. Reviewing a saved scan never starts sensors. Ordinary capture, exports and viewing remain usable without Vastu. Do not silently upload scans or call an external agent.
+
+## Research findings
+
+Eight 45-degree radial sectors, a 3×3 nine-cell grid and more detailed mandalas are different constructions. Do not present them as interchangeable. Start with eight radial sectors as requested. North is centered at 0°, with boundaries at ±22.5°; each next sector advances 45°. Clip wedges to the confirmed apartment footprint. A Brahmasthan is a central area defined by a chosen grid convention, not simply the center point or an arbitrary circle.
+
+There is no universally agreed irregular-plan center. Offer a polygon area centroid as an explicit geometric default, a north-aligned bounding-rectangle midpoint as a comparison, and a recorded manual override. Never call the geometric default the authoritative Vastu center. Show the method and compare whether findings change. A centroid can fall outside a concave footprint: require boundary/center review in that case. Define balcony, terrace, shaft and common-area inclusion explicitly before calculating anything.
+
+Use the private apartment boundary and entrance, distinguishing the apartment door from the building gate. Record both entrance location relative to apartment center and outward door-facing bearing; these are different quantities. Room-level subanalysis must identify its separate center and must not replace whole-apartment placement.
+
+Common assessment subjects include kitchen placement (often SE, with NW accepted by some modern practitioners), prayer area (often NE), bedroom use (often SW for the principal bedroom), toilet placement and central obstructions. Rules vary by school, particularly modern bathroom applications. Each enabled rule needs its own source, scope, accepted alternatives and interpretation; these are candidate rules pending a reviewed rule catalog, not a normative standard.
+
+Sources consulted 2026-10-29 (contemporary practitioner explanations, not independent validation):
+- https://www.memberofarchitecture.com/blog/6ad269a1addce747b85e-vastu-directions-16-zones-explained — angular divisions, distinction from square mandalas and varying center conventions.
+- https://vaastuworld.org/vastu/tips/vastu-for-flats-apartments — private dwelling boundary, entrance distinctions, fixed-service constraints, classical versus modern rule attribution.
+- https://www.aparnaenterprisesltd.com/blog/vastu/vastu-for-flats-apartments/ — contemporary apartment checklist and variation in bathroom recommendations.
+
+## Proposed experience
+
+1. Open a saved apartment; optionally enable Vastu review.
+2. Confirm scope: complete apartment or partial room scan. Whole-apartment findings require a coherent placement of all rooms, including corridors. Separate unaligned sessions cannot establish the full footprint.
+3. Confirm north source (true/magnetic/manual), uncertainty and any independent verification. Manual north preserves the sensor estimate and records who changed it and why.
+4. Trace or correct the apartment polygon; identify excluded common areas and included balconies. Show missing or uncertain portions rather than filling them silently.
+5. Review center method and eight sectors. Show an optional, separately labeled 3×3 grid/central area later; do not imply radial sectors define Brahmasthan size.
+6. Confirm room uses and mark private entrance, toilet versus bathing area, hob/cooking direction, bed head direction and prayer feature where relevant. Scanned object recognition supplies suggestions requiring confirmation.
+7. Display feature overlap across sectors (e.g. kitchen 60% E, 40% SE), not only the centroid sector. Keep feature location and facing direction separate. Let users select a room while retaining the apartment-center overlay.
+8. Show sourced findings as matches preference / conflicts with preference / uncertain / missing information. Separate fixed rental constraints from movable furniture options. No unsupported outcome predictions or demolition recommendations.
+9. Copy analysis context and optionally export annotated plan plus JSON. Copying is explicit, local, and does not send information to any agent automatically.
+
+## Uncertainty policy
+
+Current reconstruction uses maximum retained sensor heading error plus maximum angular spread. The recorded example has 10° sensor error + about 9.5° spread = 19.5°, displayed rounded up as ±20°. This is a conservative heuristic, not a calibrated statistical confidence interval. Averaging cannot remove a shared magnetic bias. Tightening the acceptance threshold rejects data; it does not improve the measurement.
+
+Proposed strict review profile: require estimated combined error <=10° for definitive directional findings, with 5° as a capture target rather than a promise. Existing scans remain visible with their honest error. For each feature, rotate north through its uncertainty interval and recompute sector intersections. Any affected sector assignment is ambiguous. Include boundary and center alternatives as separate sensitivity checks. Sector width is 45°: ±20° can materially change an assignment, especially near boundaries. Do not use 16 zones by default; they are only 22.5° wide.
+
+Improvement procedure: remove magnetic accessories, avoid metal/electrical equipment, follow iOS calibration guidance if shown, collect stable repeated observations at separated positions and phone tilts, compare with an independent verified bearing. Report disagreements rather than selecting the most favorable reading. More samples alone do not establish absolute accuracy.
+
+## Data and implementation sequence
+
+Add optional versioned `vastuReview` metadata alongside existing scan data: scope/completeness, apartment polygon with holes and inclusion decisions, coordinate frame/units, room transforms, sensor and overridden north with provenance, center method/point, sector definition, confirmed feature polygons/points/orientations, chosen sourced rule profile, uncertainty and missing fields. Keep original sensor observations unchanged.
+
+Phase 1: apartment footprint editing/confirmation, alignment checks, center and eight-sector overlay in plan view; no automatic verdicts.
+Phase 2: confirmed room/fixture semantics, overlap calculations, uncertainty sensitivity, copyable context.
+Phase 3: versioned sourced rule profiles and rental comparison. Add optional 3D sector overlay after the plan workflow is clear.
+
+Validation when implementing: rectangles and concave plans; polygon holes; centroid outside footprint; room transforms and rotated north; 359°/0° wrap; features crossing sector boundaries; ±error crossing boundaries; incomplete/unaligned apartments; no compass; manual override provenance; default-off persistence behavior; all existing scan/view/export paths with optional fields absent. Device UI tests require exploration under the applicable mobile-testing rules.
