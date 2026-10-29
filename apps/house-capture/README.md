@@ -11,9 +11,7 @@ rebuild pipeline (`scan-to-threejs` skill) can use directly. Per room it records
 
 Requires an iPhone or iPad **with LiDAR** running iOS 17+.
 
-This fork can optionally record compass observations while scanning. **Record compass directions** is off for every new session; enable it before scanning or while paused. With it off, compass/location sensors remain stopped and Location permission is not requested. Location permission enables true-north correction; without a usable location, observations are explicitly magnetic. The capture screen shows the camera bearing and estimated sensor accuracy. Geographic coordinates are not saved. See [compass capture](../../docs/compass-capture.md).
-
-The updated privacy policy is bundled offline. Publish this fork's generated `release/site/privacy.html` and set its real HTTPS URL before App Store distribution; this development build leaves the online privacy link unset.
+The app can optionally record compass observations while scanning. **Record compass directions** is off for every new session; enable it before scanning or while paused. With it off, compass/location sensors remain stopped and Location permission is not requested. Location permission enables true-north correction; without a usable location, observations are explicitly magnetic. The capture screen shows the camera bearing and estimated sensor accuracy. Geographic coordinates are not saved. See [compass capture](../../docs/compass-capture.md).
 
 ## Build
 

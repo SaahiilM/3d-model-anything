@@ -29,9 +29,8 @@ targets:
         NSLocationWhenInUseUsageDescription: 3D Model Anything uses your location while scanning to record true north for room and window directions. Your geographic coordinates are not saved.
         # Non-LiDAR devices can import and review scans; capture is checked at runtime.
         ITSAppUsesNonExemptEncryption: false
-        # Publish this fork's updated privacy page before configuring a public URL.
-        HouseCapturePrivacyURL: ""
-        HouseCaptureSupportURL: "https://github.com/SaahiilM/3d-model-anything/issues"
+        HouseCapturePrivacyURL: "https://wesbos.github.io/3d-model-anything/privacy.html"
+        HouseCaptureSupportURL: "https://wesbos.github.io/3d-model-anything/support.html"
         UIFileSharingEnabled: true
         LSSupportsOpeningDocumentsInPlace: true
         UILaunchScreen: {}
