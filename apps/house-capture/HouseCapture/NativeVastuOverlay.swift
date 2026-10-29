@@ -14,6 +14,9 @@ struct NativeVastuOverlay: View {
   let northAngleDegrees: Double?
   let northDescription: String
   let limitation: String
+  /// Safe-area insets captured by the full-screen viewer before it opts out of them.
+  /// These affect controls only; the drawing and its normalized coordinates stay full-bleed.
+  let safeAreaInsets: EdgeInsets
   /// Projected floor boundary in normalized overlay coordinates (origin at top-left).
   /// The overlay is intentionally not drawn if this scan-derived polygon is unavailable.
   let footprint: [CGPoint]
@@ -26,7 +29,9 @@ struct NativeVastuOverlay: View {
   @State private var rotationGestureStart: Double?
   @State private var scaleGestureStart: Double?
   @State private var gridScale = 1.0
+  @State private var showOptions = false
   @State private var showFineTuning = false
+  @State private var showInformation = false
 
   private var effectiveNorth: Double {
     (northAngleDegrees ?? manualNorth) + fineAdjustment
@@ -63,14 +68,28 @@ struct NativeVastuOverlay: View {
           .gesture(centerDrag(in: proxy.size))
           .accessibilityLabel("Drag to move overlay center")
 
-        VStack(spacing: 10) {
-          header
+        VStack(alignment: .leading, spacing: 8) {
+          compactToolbar
+          if showOptions {
+            ScrollView {
+              expandedControls
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .scrollIndicators(.hidden)
+            .scrollDismissesKeyboard(.interactively)
+            .frame(maxHeight: controlsMaxHeight(in: proxy.size))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(.white.opacity(0.2)))
+            .transition(.move(edge: .top).combined(with: .opacity))
+          }
           Spacer(minLength: 0)
-          footer
         }
-        .padding(.horizontal, 18)
-        .padding(.top, 10)
-        .padding(.bottom, 12)
+        .padding(.leading, max(12, safeAreaInsets.leading + 8))
+        .padding(.trailing, max(12, safeAreaInsets.trailing + 8))
+        .padding(.top, safeAreaInsets.top + 8)
+        .padding(.bottom, safeAreaInsets.bottom + 8)
+        .animation(.easeInOut(duration: 0.2), value: showOptions)
       }
       .frame(maxWidth: .infinity, maxHeight: .infinity)
       .ignoresSafeArea(edges: .bottom)
@@ -80,30 +99,52 @@ struct NativeVastuOverlay: View {
     .transition(.opacity)
   }
 
-  private var header: some View {
-    VStack(alignment: .leading, spacing: 10) {
-      HStack(spacing: 12) {
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Vastu overlay")
-            .font(.headline.weight(.semibold))
-          Text(northAngleDegrees == nil ? "Manual north · unverified" : northDescription)
-            .font(.caption)
-            .foregroundStyle(.white.opacity(0.72))
-        }
-        Spacer(minLength: 4)
-        Button { isPresented = false } label: {
-          Image(systemName: "xmark")
-            .font(.system(size: 13, weight: .bold))
-            .frame(width: 34, height: 34)
-            .background(.white.opacity(0.14), in: Circle())
-        }
-        .accessibilityLabel("Close Vastu overlay")
+  private var compactToolbar: some View {
+    HStack(spacing: 10) {
+      VStack(alignment: .leading, spacing: 1) {
+        Text("Vastu overlay")
+          .font(.subheadline.weight(.semibold))
+        Text(layout.rawValue + " · " + (northAngleDegrees == nil ? "Manual north" : northDescription))
+          .font(.caption2)
+          .lineLimit(1)
+          .foregroundStyle(.white.opacity(0.82))
       }
+      .layoutPriority(1)
+      Spacer(minLength: 2)
+      Button {
+        withAnimation(.easeInOut(duration: 0.2)) { showOptions.toggle() }
+      } label: {
+        Label(showOptions ? "Done" : "Options", systemImage: showOptions ? "checkmark" : "slider.horizontal.3")
+          .font(.caption.weight(.semibold))
+          .labelStyle(.titleAndIcon)
+          .padding(.horizontal, 10)
+          .frame(height: 34)
+          .background(.white.opacity(0.14), in: Capsule())
+      }
+      .accessibilityLabel(showOptions ? "Hide Vastu options" : "Show Vastu options")
+      Button { isPresented = false } label: {
+        Image(systemName: "xmark")
+          .font(.system(size: 12, weight: .bold))
+          .frame(width: 34, height: 34)
+          .background(.white.opacity(0.16), in: Circle())
+      }
+      .accessibilityLabel("Close Vastu overlay")
+    }
+    .foregroundStyle(.white)
+    .padding(.horizontal, 12)
+    .padding(.vertical, 8)
+    .background(.ultraThinMaterial, in: Capsule())
+    .overlay(Capsule().stroke(.white.opacity(0.22)))
+  }
 
+  private var expandedControls: some View {
+    VStack(alignment: .leading, spacing: 10) {
       Picker("Overlay layout", selection: $layout) {
         ForEach(Layout.allCases) { item in Text(item.rawValue).tag(item) }
       }
       .pickerStyle(.segmented)
+      .tint(.mint)
+      .foregroundStyle(.white)
 
       if northAngleDegrees == nil {
         HStack(spacing: 8) {
@@ -166,32 +207,27 @@ struct NativeVastuOverlay: View {
           .font(.caption2.weight(.semibold))
           .foregroundStyle(.yellow)
       }
-    }
-    .padding(14)
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-    .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.14)))
-  }
-
-  private var footer: some View {
-    VStack(alignment: .leading, spacing: 5) {
-      Text("Exploratory reference · not a universal verdict")
-        .font(.caption.weight(.semibold))
-      Text(limitation)
+      DisclosureGroup("About this reference", isExpanded: $showInformation) {
+        VStack(alignment: .leading, spacing: 5) {
+          Text("Exploratory reference · not a universal verdict")
+            .fontWeight(.semibold)
+          Text(limitation)
+          Text("This view covers the visible room scan only; it does not infer the center of a whole home or apartment.")
+          Text("The captured boundary may be incomplete, and unscanned areas are not represented.")
+        }
         .font(.caption2)
         .fixedSize(horizontal: false, vertical: true)
-      Text("This view covers the visible room scan only; it does not infer the center of a whole home or apartment.")
-        .font(.caption2)
-        .fixedSize(horizontal: false, vertical: true)
-      Text("The captured boundary may be incomplete, and unscanned areas are not represented.")
-        .font(.caption2)
-        .fixedSize(horizontal: false, vertical: true)
+        .foregroundStyle(.white.opacity(0.88))
+        .padding(.top, 5)
+      }
+      .font(.caption.weight(.medium))
     }
     .foregroundStyle(.white)
-    .padding(.horizontal, 14)
-    .padding(.vertical, 11)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-    .overlay(RoundedRectangle(cornerRadius: 16, style: .continuous).stroke(.white.opacity(0.14)))
+  }
+
+  private func controlsMaxHeight(in size: CGSize) -> CGFloat {
+    let available = size.height - safeAreaInsets.top - safeAreaInsets.bottom - 72
+    return max(100, min(size.height * 0.58, available))
   }
 
   private func drawGrid(in context: inout GraphicsContext, polygon: Path, bounds: CGRect, size: CGSize) {

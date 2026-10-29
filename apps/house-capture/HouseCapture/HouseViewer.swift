@@ -612,34 +612,41 @@ struct PreviewScreen: View {
   @Namespace private var styleNS
 
   var body: some View {
-    ZStack {
-      PreviewSceneView(scene: model.scene)
-        .ignoresSafeArea()
+    GeometryReader { safeArea in
+      ZStack {
+        PreviewSceneView(scene: model.scene)
+          .ignoresSafeArea()
 
-      // the photo, exactly where its pixels land on the 3D view (full-screen coordinates)
-      GeometryReader { geo in
-        if model.walkthrough, model.atPhoto, let img = model.overlay, let rect = model.photoRect(in: geo.size) {
-          Image(uiImage: img)
-            .resizable()
-            .frame(width: rect.width, height: rect.height)
-            .position(x: rect.midX, y: rect.midY)
-            .opacity(model.photoOpacity)
-            .transition(.opacity)
+        // the photo, exactly where its pixels land on the 3D view (full-screen coordinates)
+        GeometryReader { geo in
+          if model.walkthrough, model.atPhoto, let img = model.overlay, let rect = model.photoRect(in: geo.size) {
+            Image(uiImage: img)
+              .resizable()
+              .frame(width: rect.width, height: rect.height)
+              .position(x: rect.midX, y: rect.midY)
+              .opacity(model.photoOpacity)
+              .transition(.opacity)
+          }
         }
-      }
-      .ignoresSafeArea()
-      .allowsHitTesting(false)
-
-      overlays
-      if model.showVastu {
-        NativeVastuOverlay(
-          isPresented: $model.showVastu,
-          northAngleDegrees: model.recordedNorthForVastu?.angle,
-          northDescription: model.recordedNorthForVastu?.description ?? "",
-          limitation: "Room-only and approximate. The saved scan may omit floor details or contain alignment error.",
-          footprint: model.vastuFootprint
-        )
         .ignoresSafeArea()
+        .allowsHitTesting(false)
+
+        // The plan remains visible beneath the Vastu interpretation, while the viewer controls
+        // and status chrome are removed for the duration of the modal.
+        if !model.showVastu {
+          overlays
+        }
+        if model.showVastu {
+          NativeVastuOverlay(
+            isPresented: $model.showVastu,
+            northAngleDegrees: model.recordedNorthForVastu?.angle,
+            northDescription: model.recordedNorthForVastu?.description ?? "",
+            limitation: "Room-only and approximate. The saved scan may omit floor details or contain alignment error.",
+            safeAreaInsets: safeArea.safeAreaInsets,
+            footprint: model.vastuFootprint
+          )
+          .ignoresSafeArea()
+        }
       }
     }
     .toolbar(.hidden, for: .navigationBar)
