@@ -41,6 +41,7 @@ export function showLayout(host: HTMLElement, room: RoomLayout, name: string) {
     group.append(el('title', {}, `${i + 1}. ${o.category} — ${o.size[0].toFixed(2)} × ${o.size[2].toFixed(2)} m`));
     svg.append(group);
   }
+  const bearingLabels: SVGElement[] = [];
   for (const w of room.walls) {
     svg.append(el('line', { x1:w.a[0], y1:w.a[1], x2:w.b[0], y2:w.b[1], stroke:'#293e42', 'stroke-width':.075 }));
     for (const o of w.openings) {
@@ -52,20 +53,22 @@ export function showLayout(host: HTMLElement, room: RoomLayout, name: string) {
     if (facing) {
       const x = (w.a[0] + w.b[0]) / 2 - w.u[2] * .28;
       const z = (w.a[1] + w.b[1]) / 2 + w.u[0] * .28;
-      svg.append(el('text', { x, y:z, 'text-anchor':'middle', 'font-size':.14, fill:'#13627a',
+      bearingLabels.push(el('text', { x, y:z, 'text-anchor':'middle', 'font-size':.14, fill:'#13627a',
         stroke:'#fff', 'stroke-width':.04, 'paint-order':'stroke' }, formatBearing(facing)));
     }
   }
   if (hasNorth(room.compass)) {
     const n = room.compass.north, x = minX - .4, z = minZ - .1;
     svg.append(el('line', {x1:x, y1:z, x2:x+n[0]*.3, y2:z+n[2]*.3, stroke:'#13627a', 'stroke-width':.035}));
-    svg.append(el('circle', {cx:x+n[0]*.3, cy:z+n[2]*.3, r:.045, fill:'#13627a'}));
-    svg.append(el('text', {x, y:z+.22, 'text-anchor':'middle', 'font-size':.13, fill:'#13627a'}, 'N'));
+    const tip=[x+n[0]*.3,z+n[2]*.3], base=[x+n[0]*.19,z+n[2]*.19], side=[-n[2]*.045,n[0]*.045];
+    svg.append(el('polygon',{points:[tip,[base[0]+side[0],base[1]+side[1]],[base[0]-side[0],base[1]-side[1]]].map(p=>p.join(',')).join(' '),fill:'#13627a'}));
+    svg.append(el('text', {x:tip[0]-n[2]*.13, y:tip[1]+n[0]*.13, 'text-anchor':'middle', 'font-size':.13, fill:'#13627a'}, 'N'));
   }
   for (const [i,o] of room.objects.entries()) {
     // Numbered labels stay upright; the legend preserves categories without covering furniture.
     svg.append(el('text', { x:o.center[0], y:o.center[2], 'text-anchor':'middle', 'dominant-baseline':'central', 'font-size':.14, fill:'#22383c', stroke:'#fff', 'stroke-width':.045, 'paint-order':'stroke' }, String(i+1)));
   }
+  svg.append(...bearingLabels);
   for (const r of room.rooms ?? []) {
     const x=(Math.min(...r.polygon.map(p=>p[0]))+Math.max(...r.polygon.map(p=>p[0])))/2;
     const z=(Math.min(...r.polygon.map(p=>p[1]))+Math.max(...r.polygon.map(p=>p[1])))/2;
@@ -74,7 +77,7 @@ export function showLayout(host: HTMLElement, room: RoomLayout, name: string) {
   svg.append(el('text',{x:(minX+maxX)/2,y:minZ-.25,'text-anchor':'middle','font-size':.17,fill:'#3b5356'},`${width.toFixed(2)} m`));
   svg.append(el('text',{x:maxX+.25,y:(minZ+maxZ)/2,transform:`rotate(90 ${maxX+.25} ${(minZ+maxZ)/2})`,'text-anchor':'middle','font-size':.17,fill:'#3b5356'},`${height.toFixed(2)} m`));
   const legend = document.createElement('aside');
-  const key = document.createElement('p'); key.textContent = 'Blue: windows · Orange: doors/openings'; legend.append(key);
+  const key = document.createElement('p'); key.textContent = 'Blue: windows · Orange: doors/openings' + (hasNorth(room.compass) ? ' · Bearings face outward from the room.' : ''); legend.append(key);
   const list = document.createElement('ol');
   for (const o of room.objects) { const li=document.createElement('li'); li.textContent=o.category; list.append(li); }
   legend.append(list); host.append(legend);

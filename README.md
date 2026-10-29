@@ -38,6 +38,8 @@ Export a room or session through the system share sheet and extract it into an i
 
 This fork adds compass capture during scanning. Allow Location While Using the App for true north; otherwise readings are marked magnetic north. Direction observations, accuracy and matching camera poses travel in room exports. Reconstruction preserves north through room rotations and the viewer labels outward wall/window directions. See [compass capture](docs/compass-capture.md) for the contract and remaining device validation.
 
+To check directions immediately, convert the export with `bundle_to_room.py`, open `/inspect.html` in the local viewer and select the converted `room.json`. **3D** and **Floor plan** show recorded north and outward wall/window bearings before detailed reconstruction. Keep Device Hub screen streaming closed while scanning if it causes a black camera view.
+
 ## Use the skill
 
 The skill lives at `.agents/skills/scan-to-threejs/SKILL.md`. Open this repository in an agent that supports local skills and ask it to use **scan-to-threejs** with your extracted export. You can also copy that skill directory into your agent's skill directory; the companion viewer/runtime in this repo is still needed for its capture workflow.
