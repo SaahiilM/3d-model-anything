@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import type { RoomLayout } from '../../../packages/room-runtime/types';
-import { CompassOverlay, compassDescription } from './compass';
+import { CompassOverlay, compassDescription, hasNorth } from './compass';
 import { showLayout } from './layout';
+import { computeVastuPreview } from './vastu';
+import { makeVastuAgentContext } from './vastu-context';
 import { disposeObjects } from '../../../packages/room-runtime/dispose';
 import './inspect.css';
 
@@ -24,6 +26,7 @@ controls.minDistance = .5; controls.maxDistance = 80; controls.maxPolarAngle = M
 let geometry = new THREE.Group(); scene.add(geometry);
 let overlay: CompassOverlay | undefined;
 let inPlan = false;
+let vastuEnabled = false;
 let walls: {group:THREE.Group; midpoint:THREE.Vector3; inward:THREE.Vector3}[] = [];
 const finiteVector = (value: unknown, length: number): value is number[] => Array.isArray(value)
   && value.length === length && value.every(n => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) < 10_000);
@@ -97,9 +100,86 @@ function show(value: unknown, label: string) {
   controls.target.copy(center); camera.position.copy(center).add(new THREE.Vector3(1,.85,1).normalize().multiplyScalar(distance));
   camera.near=Math.max(.02,distance/1000);camera.far=Math.max(100,distance*10);camera.updateProjectionMatrix();
   overlay=new CompassOverlay(host,data,wallTop,render);overlay.setVisible(!inPlan);
-  showLayout(plan,data,label); controls.update(); render();
+  vastuEnabled = false;
+  showLayout(plan,data,label);
+  addVastuPreview(data);
+  controls.update(); render();
   status.textContent=`${label} · Measured geometry · ${compassDescription(data.compass)}`;
 }
+
+function addVastuPreview(data: MeasuredLayout) {
+  const toolbar = document.createElement('div'); toolbar.className = 'vastu-controls';
+  const button = document.createElement('button'); button.type = 'button'; button.textContent = 'Vastu preview';
+  button.setAttribute('aria-pressed', 'false');
+  const copy = document.createElement('button'); copy.type = 'button'; copy.textContent = 'Copy review context';
+  copy.hidden = true;
+  const fallback = document.createElement('textarea'); fallback.className = 'vastu-copy-fallback'; fallback.readOnly = true;
+  fallback.setAttribute('aria-label', 'Copyable local review context'); fallback.hidden = true;
+  const note = document.createElement('p'); note.className = 'vastu-note';
+  note.hidden = true;
+  note.textContent = 'Room preview — not whole-apartment Vastu. No Vastu verdicts are provided.';
+  const compass = data.compass;
+  const preview = hasNorth(compass) ? computeVastuPreview(data.polygon, [compass.north[0], compass.north[2]]) : undefined;
+  let unavailable = '';
+  if (!hasNorth(compass)) unavailable = `Unavailable: ${compass?.reason ?? 'no usable aligned true or magnetic north was recorded.'}`;
+  else if (!preview) unavailable = 'Unavailable: the floor polygon cannot produce a reliable area centroid.';
+  else if (!preview.centerInside) unavailable = 'Unavailable: the polygon area centroid falls outside this concave floor outline.';
+  if (unavailable) { button.disabled = true; note.hidden = false; note.textContent += ` ${unavailable}`; }
+  else if (preview && hasNorth(compass)) {
+    const error = Math.ceil(compass.accuracyDegrees);
+    note.textContent += ` Center: polygon area centroid (room-local; preview only). North: recorded ${compass.reference} north, ±${error}° estimated uncertainty.`;
+    if (error > 10) note.textContent += ' Uncertainty exceeds 10°; sector boundaries may shift, so treat this overlay as especially approximate.';
+    const svg = plan.querySelector('svg');
+    if (svg) {
+      const sectors = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+      sectors.classList.add('vastu-sectors', 'vastu-off'); sectors.setAttribute('aria-label', 'Eight north-aligned directional sectors');
+      const colors = ['#4c99b8','#659e88','#b9a64e','#c6854d','#bc6661','#a66a9c','#687caf','#4c95a0'];
+      for (const [index, sector] of preview.sectors.entries()) {
+        const group = document.createElementNS(svg.namespaceURI, 'g'); group.setAttribute('fill', colors[index]); group.setAttribute('fill-opacity', '.19');
+        for (const piece of sector.pieces) {
+          const path = document.createElementNS(svg.namespaceURI, 'polygon');
+          path.setAttribute('points', piece.map(p => p.join(',')).join(' ')); group.append(path);
+        }
+        sectors.append(group);
+      }
+      const annotations = document.createElementNS(svg.namespaceURI, 'g'); annotations.classList.add('vastu-annotations', 'vastu-off');
+      const marker = document.createElementNS(svg.namespaceURI, 'circle'); marker.setAttribute('cx', String(preview.center[0])); marker.setAttribute('cy', String(preview.center[1])); marker.setAttribute('r', '.08'); marker.setAttribute('class', 'vastu-center');
+      annotations.append(marker);
+      const xs = data.polygon.map(p => p[0]), ys = data.polygon.map(p => p[1]);
+      const radius = Math.max(Math.max(...xs)-Math.min(...xs), Math.max(...ys)-Math.min(...ys)) * .24;
+      for (let i=0; i<8; i++) {
+        const a = i*Math.PI/4, nx=compass.north[0], nz=compass.north[2];
+        const x=preview.center[0]+radius*(nx*Math.cos(a)-nz*Math.sin(a));
+        const y=preview.center[1]+radius*(nz*Math.cos(a)+nx*Math.sin(a));
+        const text=document.createElementNS(svg.namespaceURI,'text'); text.setAttribute('x',String(x));text.setAttribute('y',String(y));text.setAttribute('class','vastu-label');text.setAttribute('text-anchor','middle');text.textContent=sectorLabel(i);annotations.append(text);
+      }
+      const outlineCount = data.rooms?.length || 1;
+      svg.insertBefore(sectors, svg.children[outlineCount] ?? null);
+      svg.append(annotations);
+      button.addEventListener('click', () => {
+        vastuEnabled = !vastuEnabled; button.setAttribute('aria-pressed', String(vastuEnabled));
+        sectors.classList.toggle('vastu-off', !vastuEnabled);
+        annotations.classList.toggle('vastu-off', !vastuEnabled);
+        note.hidden = !vastuEnabled; copy.hidden = !vastuEnabled;
+      });
+    }
+  }
+  copy.addEventListener('click', async () => {
+    const context = makeVastuAgentContext(data, { scope: 'partial-room' });
+    fallback.value = context; fallback.hidden = false;
+    try {
+      await navigator.clipboard.writeText(context);
+      copy.textContent = 'Copy again';
+      note.textContent = 'Review context copied locally; nothing was sent. The full text is shown below.';
+    } catch {
+      fallback.focus(); fallback.select();
+      note.textContent = 'Clipboard access is unavailable. The complete review context is shown below for manual copying.';
+    }
+  });
+  toolbar.append(button, copy, note); plan.prepend(toolbar); plan.append(fallback);
+}
+
+function sectorLabel(index: number) { return ['N','NE','E','SE','S','SW','W','NW'][index]; }
 
 function mode(next: boolean) {
   inPlan=next;plan.hidden=!next;canvas.hidden=next;overlay?.setVisible(!next);

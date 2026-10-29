@@ -1,6 +1,6 @@
 # Optional Vastu review — proposed plan
 
-Status: design proposal, not an implemented Vastu analysis feature.
+Status: apartment analysis remains a design proposal. A bounded room-only sector preview and copyable context are available in the local inspector; they do not establish an apartment center or produce compliance verdicts.
 
 ## Purpose and boundaries
 
@@ -18,7 +18,9 @@ Use the private apartment boundary and entrance, distinguishing the apartment do
 
 Common assessment subjects include kitchen placement (often SE, with NW accepted by some modern practitioners), prayer area (often NE), bedroom use (often SW for the principal bedroom), toilet placement and central obstructions. Rules vary by school, particularly modern bathroom applications. Each enabled rule needs its own source, scope, accepted alternatives and interpretation; these are candidate rules pending a reviewed rule catalog, not a normative standard.
 
-Sources consulted 2026-10-29 (contemporary practitioner explanations, not independent validation):
+Primary-text check (2026-10-29): [Bṛhat Saṃhitā, chapter 53, N. Chidambaram Iyer translation (1884)](https://www.wisdomlib.org/hinduism/book/brihat-samhita/d/doc229297.html). Verse 42 describes an 81-square site grid; verses 46–47 assign nine central cells to Brahmā; verse 71 discusses entrance locations within the 81/64-square schemes. Verse 118 places worship in NE and kitchen in SE, with storage uses in SW/NW. This supports keeping a center region and entrance-position analysis distinct from an eight-sector facing label. It does not establish polygon centroid as the traditional irregular-apartment center or justify attributing a modern SW-bedroom rule to verse 118. Contemporary interpretation of apartments needs explicit attribution.
+
+Contemporary practitioner explanations consulted 2026-10-29 (not independent validation):
 - https://www.memberofarchitecture.com/blog/6ad269a1addce747b85e-vastu-directions-16-zones-explained — angular divisions, distinction from square mandalas and varying center conventions.
 - https://vaastuworld.org/vastu/tips/vastu-for-flats-apartments — private dwelling boundary, entrance distinctions, fixed-service constraints, classical versus modern rule attribution.
 - https://www.aparnaenterprisesltd.com/blog/vastu/vastu-for-flats-apartments/ — contemporary apartment checklist and variation in bathroom recommendations.
@@ -52,3 +54,7 @@ Phase 2: confirmed room/fixture semantics, overlap calculations, uncertainty sen
 Phase 3: versioned sourced rule profiles and rental comparison. Add optional 3D sector overlay after the plan workflow is clear.
 
 Validation when implementing: rectangles and concave plans; polygon holes; centroid outside footprint; room transforms and rotated north; 359°/0° wrap; features crossing sector boundaries; ±error crossing boundaries; incomplete/unaligned apartments; no compass; manual override provenance; default-off persistence behavior; all existing scan/view/export paths with optional fields absent. Device UI tests require exploration under the applicable mobile-testing rules.
+
+## First browser preview
+
+Open `/inspect.html` with a converted room JSON, choose **Floor plan**, then enable **Vastu preview**. The toggle resets off whenever a file loads or the page reloads. It uses only the measured room polygon and recorded north, shows the geometric center and eight clipped sectors, and explicitly marks partial-room scope. The overlay does not evaluate rules or confirm an apartment boundary. **Copy review context** copies the converted geometry and observations with analysis instructions; a selectable text fallback is available if clipboard access fails. No content is sent automatically. This preview is browser-only; the native iPhone viewer currently has the separate Recorded north overlay.
