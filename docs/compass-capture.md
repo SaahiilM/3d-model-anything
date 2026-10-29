@@ -1,6 +1,6 @@
 # Compass capture and reconstructed directions
 
-This fork records the iPhone compass during a LiDAR room scan and carries the evidence into reconstruction. Labels describe the outward normal of a wall or window: the direction you face looking through it from inside. These are sensor estimates, not surveyed bearings.
+The iOS app can record compass observations during a LiDAR room scan and carry them into reconstruction. Labels describe the outward normal of a wall or window: the direction you face looking through it from inside. These are sensor estimates, not surveyed bearings.
 
 ## Capture
 
@@ -36,14 +36,14 @@ Keep the converted layout including `compass` when implementing the rebuilt `Roo
 
 For immediate inspection before detailed reconstruction, run the viewer and open `/inspect.html`. Select the converted `room.json` with **Open room JSON**, then switch between **3D** and **Floor plan**. This shows the measured room/furniture bounds, recorded north, wall/window bearings and uncertainty. File selection stays in the browser and does not upload the scan. Detailed reconstruction still uses the agent workflow.
 
-## Validation and device checks
+## Device validation
 
-A physical iPhone 16 Pro Max scan recorded 166 compass observations (165 true north), 44 photos, 275 depth frames and four walls. Conversion retained the readings and produced a true-north alignment with approximately 20° estimated uncertainty. The local 3D/plan inspector displayed the derived bearings. These captures stay in ignored local folders; no private scan is distributed with the source.
-
-During this device check on iOS 27.2, both this app and Apple's Measure showed a black camera view while Device Hub screen streaming was active. Scanning worked after the stream was closed. If this happens, close Device Hub and scan using the phone's UI. USB installation and command-line file transfer can be used without screen streaming.
-
-Simulator compilation cannot validate the compass/LiDAR combination. Before relying on a tour scan, compare a known wall/window bearing with the camera readout at several phone tilts, then review exported directions after reconstruction and after a room rotation. Also check denied Location permission, magnetic fallback, pause/resume, interruption recovery and room-only export/import on the iPhone.
+Simulator compilation cannot validate the compass/LiDAR combination. Before relying on a tour scan, compare a known wall/window bearing with the camera readout at several phone tilts, then review exported directions after reconstruction and after a room rotation. Also check denied Location permission, magnetic fallback, pause/resume, interruption recovery and room-only export/import on an iPhone.
 
 Indoor magnetic fields can bias even consistent readings. Displayed uncertainty reflects sensor-reported accuracy and observed disagreement; it cannot establish that nearby metal introduced no systematic error.
 
 Apple references: [CLHeading](https://developer.apple.com/documentation/corelocation/clheading), [true heading](https://developer.apple.com/documentation/corelocation/clheading/trueheading), [heading accuracy](https://developer.apple.com/documentation/corelocation/clheading/headingaccuracy), [camera view matrix](https://developer.apple.com/documentation/arkit/arcamera/viewmatrix(for:)).
+
+## Native review
+
+In the native saved-scan 3D/mesh viewer, open the filter menu and enable **Recorded north** (off by default). Valid recorded observations produce an orange north arrow for each visible room, labeled true/magnetic and estimated uncertainty. North receives the same session-to-house rotation as the mesh. Scans without usable readings leave the toggle disabled; review never requests Location.
