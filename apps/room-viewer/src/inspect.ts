@@ -128,9 +128,15 @@ function addVastuPreview(data: MeasuredLayout) {
   const gridWidth = initialMetrics.width, gridDepth = initialMetrics.depth;
   const settings: VastuViewSettings = { method:'sectors', centerMode:'bounds', center:bboxCenter, suggestedCenter:bboxCenter,
     gridWidth, gridDepth, northSource: compass?.sourceFile ?? 'not recorded', showCenter:true, showLabels:true, opacity:.2 };
-  function field(labelText: string, control: HTMLElement) { const label=document.createElement('label');label.className='vastu-field';label.append(document.createTextNode(labelText),control);settingsPanel.append(label);return control; }
+  let fieldTarget: HTMLElement = settingsPanel;
+  function field(labelText: string, control: HTMLElement) { const label=document.createElement('label');label.className='vastu-field';label.append(document.createTextNode(labelText),control);fieldTarget.append(label);return control; }
   const method = field('Layout', document.createElement('select')) as HTMLSelectElement;
   method.add(new Option('Eight radial sectors (45°)','sectors')); method.add(new Option('North-aligned 3 × 3 grid','grid'));
+  const fineTune = document.createElement('details'); fineTune.className = 'vastu-fine-tune';
+  const fineTuneTitle = document.createElement('summary'); fineTuneTitle.textContent = 'Fine-tune'; fineTune.append(fineTuneTitle);
+  settingsPanel.append(fineTune);
+  const advancedPanel = document.createElement('div'); advancedPanel.className = 'vastu-advanced'; fineTune.append(advancedPanel);
+  fieldTarget = advancedPanel;
   const centerMode = field('Suggested center', document.createElement('select')) as HTMLSelectElement;
   centerMode.add(new Option('North-aligned bounding-box center','bounds'));centerMode.add(new Option('Polygon area centroid','centroid'));centerMode.add(new Option('Manual center','manual'));
   const centerX=field('Center X (m)',document.createElement('input')) as HTMLInputElement; centerX.type='number';centerX.step='.01';
@@ -143,9 +149,14 @@ function addVastuPreview(data: MeasuredLayout) {
   const showCenter=field('Show center marker',document.createElement('input')) as HTMLInputElement;showCenter.type='checkbox';showCenter.checked=true;
   const showLabels=field('Show labels',document.createElement('input')) as HTMLInputElement;showLabels.type='checkbox';showLabels.checked=true;
   const moveCenter=document.createElement('button');moveCenter.type='button';moveCenter.textContent='Move center';moveCenter.setAttribute('aria-pressed','false');
+  const adjustOverlay=document.createElement('button');adjustOverlay.type='button';adjustOverlay.textContent='Adjust overlay';adjustOverlay.setAttribute('aria-pressed','false');adjustOverlay.title='Touch: twist with two fingers to rotate the overlay; in grid mode, pinch to resize it. This mode pauses plan panning.';
+  const adjustHelp=document.createElement('span');adjustHelp.className='vastu-touch-help';adjustHelp.textContent='Two fingers: twist to rotate the overlay; in grid mode, pinch to resize it. Plan panning pauses while this mode is on.';adjustHelp.hidden=true;
   const reset=document.createElement('button');reset.type='button';reset.textContent='Reset suggestions';reset.title='Restore the bounding-box center suggestion and zero north adjustment.';
   const fitGrid=document.createElement('button');fitGrid.type='button';fitGrid.textContent='Fit grid to outline';fitGrid.title='Set grid width and depth to the floor polygon bounds along the current north-aligned axes.';
-  settingsPanel.append(moveCenter,reset,fitGrid);
+  settingsPanel.insertBefore(moveCenter, fineTune);
+  settingsPanel.insertBefore(adjustOverlay, fineTune);
+  settingsPanel.insertBefore(adjustHelp, fineTune);
+  advancedPanel.append(reset, fitGrid);
   const svg=plan.querySelector('svg');
   const overlayGroup=svg ? document.createElementNS(svg.namespaceURI,'g') : undefined;
   overlayGroup?.setAttribute('class','vastu-overlay vastu-off');
@@ -154,6 +165,7 @@ function addVastuPreview(data: MeasuredLayout) {
   annotationsGroup?.setAttribute('class','vastu-annotations vastu-off');
   if(svg&&annotationsGroup)svg.append(annotationsGroup);
   let dragging=false;
+  let adjusting=false;
   let gridSizeEdited=false;
   function invalidateCopiedContext() { fallback.hidden=true;fallback.value='';copy.textContent='Copy review context'; }
   function currentNorth(): [number,number] | undefined {
@@ -195,14 +207,25 @@ function addVastuPreview(data: MeasuredLayout) {
   centerMode.addEventListener('change',()=>{invalidateCopiedContext();updateControls();});method.addEventListener('change',()=>{invalidateCopiedContext();redraw();});[centerX,centerZ,opacity,showCenter,showLabels].forEach(el=>el.addEventListener('input',()=>{invalidateCopiedContext();redraw();}));[width,depth].forEach(el=>el.addEventListener('input',()=>{gridSizeEdited=true;invalidateCopiedContext();redraw();}));north.addEventListener('input',()=>{invalidateCopiedContext();const n=currentNorth()??[0,-1],m=orientationMetrics(n);width.placeholder=m.width.toFixed(2);depth.placeholder=m.depth.toFixed(2);if(!gridSizeEdited){width.value=m.width.toFixed(2);depth.value=m.depth.toFixed(2);}if(centerMode.value!=='manual')updateControls();else redraw();});
   fitGrid.addEventListener('click',()=>{const m=orientationMetrics(currentNorth()??[0,-1]);width.value=m.width.toFixed(2);depth.value=m.depth.toFixed(2);gridSizeEdited=true;invalidateCopiedContext();redraw();});
   reset.addEventListener('click',()=>{invalidateCopiedContext();centerMode.value='bounds';settings.center=settings.suggestedCenter??bboxCenter;north.value='0';updateControls();});
-  moveCenter.addEventListener('click',()=>{dragging=!dragging;moveCenter.setAttribute('aria-pressed',String(dragging));moveCenter.textContent=dragging?'Finish moving center':'Move center';});
+  let touchPoints=new Map<number,{x:number;y:number}>();
+  let centerPointers=new Set<number>();
+  let touchGesture:{distance:number;angle:number;width:number;depth:number;north:number}|undefined;
+  function releasePointers(ids:Set<number>) { const captured=[...ids];ids.clear();for(const id of captured)if(svg?.hasPointerCapture(id))svg.releasePointerCapture(id); }
+  function setAdjusting(next:boolean) { adjusting=next;adjustOverlay.setAttribute('aria-pressed',String(adjusting));adjustOverlay.textContent=adjusting?'Finish adjusting overlay':'Adjust overlay';adjustHelp.hidden=!adjusting;svg?.classList.toggle('vastu-touch-adjusting',adjusting);if(adjusting&&dragging){dragging=false;moveCenter.setAttribute('aria-pressed','false');moveCenter.textContent='Move center';releasePointers(centerPointers);}const capturedTouchPointers=new Set(touchPoints.keys());touchPoints.clear();releasePointers(capturedTouchPointers);touchGesture=undefined; }
+  moveCenter.addEventListener('click',()=>{dragging=!dragging;if(dragging)setAdjusting(false);moveCenter.setAttribute('aria-pressed',String(dragging));moveCenter.textContent=dragging?'Finish moving center':'Move center';});
+  adjustOverlay.addEventListener('click',()=>setAdjusting(!adjusting));
   function placeCenter(event: PointerEvent){if(!svg)return;const matrix=svg.getScreenCTM();if(!matrix)return;const p=svg.createSVGPoint();p.x=event.clientX;p.y=event.clientY;const q=p.matrixTransform(matrix.inverse());settings.center=[q.x,q.y];centerMode.value='manual';centerX.disabled=centerZ.disabled=false;centerX.value=q.x.toFixed(2);centerZ.value=q.y.toFixed(2);redraw();}
-  svg?.addEventListener('pointerdown',event=>{if(!dragging)return;event.preventDefault();event.stopImmediatePropagation();invalidateCopiedContext();svg.setPointerCapture(event.pointerId);placeCenter(event);},{capture:true});
+  const gesturePair=()=>Array.from(touchPoints.values()).slice(0,2);
+  const gestureMetrics=()=>{const [a,b]=gesturePair();if(!a||!b)return;return {distance:Math.max(1,Math.hypot(b.x-a.x,b.y-a.y)),angle:Math.atan2(b.y-a.y,b.x-a.x)};};
+  function finishTouchPointer(event:PointerEvent){if(!touchPoints.has(event.pointerId))return;touchPoints.delete(event.pointerId);touchGesture=undefined;if(svg?.hasPointerCapture(event.pointerId))svg.releasePointerCapture(event.pointerId);}
+  svg?.addEventListener('pointerdown',event=>{if(event.pointerType==='touch'&&adjusting&&!dragging){event.preventDefault();event.stopImmediatePropagation();invalidateCopiedContext();touchPoints.set(event.pointerId,{x:event.clientX,y:event.clientY});svg.setPointerCapture(event.pointerId);if(touchPoints.size===2){const m=gestureMetrics();if(m)touchGesture={...m,width:Math.max(.1,Number(width.value)||gridWidth),depth:Math.max(.1,Number(depth.value)||gridDepth),north:Number(north.value)||0};}return;}if(!dragging)return;event.preventDefault();event.stopImmediatePropagation();invalidateCopiedContext();centerPointers.add(event.pointerId);svg.setPointerCapture(event.pointerId);placeCenter(event);},{capture:true});
   svg?.addEventListener('pointermove',event=>{if(dragging&&svg.hasPointerCapture(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();placeCenter(event);}},{capture:true});
-  svg?.addEventListener('pointerup',event=>{if(dragging&&svg.hasPointerCapture(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();svg.releasePointerCapture(event.pointerId);}},{capture:true});
-  svg?.addEventListener('pointercancel',event=>{if(dragging&&svg.hasPointerCapture(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();svg.releasePointerCapture(event.pointerId);}},{capture:true});
+  svg?.addEventListener('pointermove',event=>{if(!adjusting||event.pointerType!=='touch'||!touchPoints.has(event.pointerId))return;event.preventDefault();event.stopImmediatePropagation();touchPoints.set(event.pointerId,{x:event.clientX,y:event.clientY});const m=gestureMetrics();if(!m||!touchGesture)return;const ratio=m.distance/touchGesture.distance;const delta=Math.atan2(Math.sin(m.angle-touchGesture.angle),Math.cos(m.angle-touchGesture.angle));if(method.value==='grid'){width.value=String(Math.max(.1,Math.min(100,touchGesture.width*ratio)).toFixed(2));depth.value=String(Math.max(.1,Math.min(100,touchGesture.depth*ratio)).toFixed(2));gridSizeEdited=true;}north.value=(touchGesture.north+delta*180/Math.PI).toFixed(1);invalidateCopiedContext();redraw();},{capture:true});
+  svg?.addEventListener('pointerup',event=>{if(touchPoints.has(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();finishTouchPointer(event);return;}if(centerPointers.has(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();centerPointers.delete(event.pointerId);if(svg.hasPointerCapture(event.pointerId))svg.releasePointerCapture(event.pointerId);}},{capture:true});
+  svg?.addEventListener('pointercancel',event=>{if(touchPoints.has(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();finishTouchPointer(event);return;}if(centerPointers.has(event.pointerId)){event.preventDefault();event.stopImmediatePropagation();centerPointers.delete(event.pointerId);if(svg.hasPointerCapture(event.pointerId))svg.releasePointerCapture(event.pointerId);}},{capture:true});
+  svg?.addEventListener('lostpointercapture',event=>{if(touchPoints.has(event.pointerId)){touchPoints.delete(event.pointerId);touchGesture=undefined;}centerPointers.delete(event.pointerId);},{capture:true});
   width.value=String(gridWidth.toFixed(2));depth.value=String(gridDepth.toFixed(2));updateControls();
-  button.addEventListener('click',()=>{vastuEnabled=!vastuEnabled;button.setAttribute('aria-pressed',String(vastuEnabled));settingsPanel.hidden=!vastuEnabled;overlayGroup?.classList.toggle('vastu-off',!vastuEnabled);annotationsGroup?.classList.toggle('vastu-off',!vastuEnabled);note.hidden=!vastuEnabled;copy.hidden=!vastuEnabled;if(!vastuEnabled)invalidateCopiedContext();});
+  button.addEventListener('click',()=>{vastuEnabled=!vastuEnabled;button.setAttribute('aria-pressed',String(vastuEnabled));settingsPanel.hidden=!vastuEnabled;overlayGroup?.classList.toggle('vastu-off',!vastuEnabled);annotationsGroup?.classList.toggle('vastu-off',!vastuEnabled);note.hidden=!vastuEnabled;copy.hidden=!vastuEnabled;if(!vastuEnabled){setAdjusting(false);dragging=false;moveCenter.setAttribute('aria-pressed','false');moveCenter.textContent='Move center';releasePointers(centerPointers);fineTune.open=false;invalidateCopiedContext();}});
   copy.addEventListener('click', async () => {
     const context = makeVastuAgentContext(data, { scope: 'partial-room', viewSettings: settings });
     fallback.value = context; fallback.hidden = false;

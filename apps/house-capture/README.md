@@ -175,3 +175,9 @@ Camera permission is checked before creating a capture. Scanning requires 500 MB
 start/resume and pauses below 200 MB; this is a reserve, not a guarantee against other processes
 using storage. Save errors are shown, and failed session saves can be retried without closing.
 Backgrounding still pauses recording. Development launch modes are enabled only in Debug builds.
+
+### Room area and optional Vastu overlay
+
+Open a saved scan and tap the map icon for a top-down plan. Per-room square feet are approximate, calculated from each saved RoomPlan floor polygon; missing, invalid, or multiple-floor geometry is shown as unavailable. These estimates are not summed into an apartment total. The ruler still measures between two selected points.
+
+With one visible room and a valid floor outline, tap the compass icon to open the optional Vastu overlay. Choose sectors or a 3×3 grid, drag the center, pinch to resize the grid, or twist to rotate it. Fine-tuning is optional. The overlay defaults off and is an exploratory room-only view; it does not determine an apartment center or Vastu verdict. Recorded north retains its estimated uncertainty; without it the user can set unverified north manually.
