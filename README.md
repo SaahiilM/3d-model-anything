@@ -36,7 +36,7 @@ The app is source-available here; an App Store release is a separate distributio
 
 Export a room or session through the system share sheet and extract it into an ignored `data/captures-in/<room>/` directory. Exports keep the existing `house-capture/5` contract; changing the app name does not change the files.
 
-This fork adds compass capture during scanning. Allow Location While Using the App for true north; otherwise readings are marked magnetic north. Direction observations, accuracy and matching camera poses travel in room exports. Reconstruction preserves north through room rotations and the viewer labels outward wall/window directions. See [compass capture](docs/compass-capture.md) for the contract and remaining device validation.
+This fork adds optional compass capture during scanning, off by default for every new session. Enable **Record compass directions** before scanning or while paused. Allow Location While Using the App for true north; otherwise readings are marked magnetic north. Direction observations, accuracy and matching camera poses travel in room exports. Reconstruction preserves north through room rotations and the viewer labels outward wall/window directions. See [compass capture](docs/compass-capture.md) for the contract and remaining device validation.
 
 To check directions immediately, convert the export with `bundle_to_room.py`, open `/inspect.html` in the local viewer and select the converted `room.json`. **3D** and **Floor plan** show recorded north and outward wall/window bearings before detailed reconstruction. Keep Device Hub screen streaming closed while scanning if it causes a black camera view.
 

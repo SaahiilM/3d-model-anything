@@ -8,11 +8,11 @@
     },
     {
       "title": "What the app saves",
-      "body": "When you scan, the app uses the camera and LiDAR to save room geometry, reference photos, depth frames, camera poses, and tracking maps on your device. It also saves room names, scan times, device and system information, and technical diagnostics such as tracking errors and memory or thermal conditions. Photos and room geometry can reveal private details of your surroundings. While recording a scan, it also saves compass readings, their estimated accuracy and the matching camera poses. Geographic coordinates are not saved."
+      "body": "When you scan, the app uses the camera and LiDAR to save room geometry, reference photos, depth frames, camera poses, and tracking maps on your device. It also saves room names, scan times, device and system information, and technical diagnostics such as tracking errors and memory or thermal conditions. Photos and room geometry can reveal private details of your surroundings. Only when you enable Record compass directions (off for every new session), it also saves compass readings, their estimated accuracy and the matching camera poses. Geographic coordinates are not saved."
     },
     {
       "title": "Permissions",
-      "body": "Camera access is requested when you start a scan. Location While Using the App is requested to correct compass readings to true north; a coarse location is sufficient. Without a usable location or permission, direction readings are marked magnetic north. Location and compass updates stop when scanning is paused or finished. You can revoke permissions in Settings. Importing, reviewing, deleting and sharing existing scans does not require these permissions. The app does not request Contacts, microphone or Photos library access."
+      "body": "Camera access is requested when you start a scan. Only enabling Record compass directions requests Location While Using the App to correct compass readings to true north; a coarse location is sufficient. Without a usable location or permission, direction readings are marked magnetic north. Location and compass updates stay off unless you enable direction recording, and stop when you disable it or scanning is paused or finished. Previously recorded observations stay saved when you disable it. You can revoke permissions in Settings. Importing, reviewing, deleting and sharing existing scans does not require these permissions. The app does not request Contacts, microphone or Photos library access."
     },
     {
       "title": "Sharing and Files",
