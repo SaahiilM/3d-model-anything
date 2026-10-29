@@ -21,9 +21,9 @@
 	<key>CFBundleVersion</key>
 	<string>1</string>
 	<key>HouseCapturePrivacyURL</key>
-	<string></string>
+	<string>https://wesbos.github.io/3d-model-anything/privacy.html</string>
 	<key>HouseCaptureSupportURL</key>
-	<string>https://github.com/SaahiilM/3d-model-anything/issues</string>
+	<string>https://wesbos.github.io/3d-model-anything/support.html</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>LSSupportsOpeningDocumentsInPlace</key>
