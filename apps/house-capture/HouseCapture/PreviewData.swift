@@ -44,6 +44,9 @@ struct PreviewRoom: Identifiable, Hashable {
   let name: String
   let mesh: URL
   let usdz: URL?
+  /// Approximate floor footprint from the saved RoomPlan polygon. Missing when the saved
+  /// RoomPlan model has no single valid floor polygon; never inferred from mesh bounds.
+  var floorArea: NativeRoomArea.Estimate? = nil
   var id: String { "\(session)/\(index)" }
 }
 
@@ -122,7 +125,8 @@ struct PreviewSource {
     let usdz = s.folder.appendingPathComponent("rooms/room-\(index).usdz")
     return PreviewRoom(session: s.index, index: index, name: name,
                        mesh: s.folder.appendingPathComponent("mesh/room-\(index).ply"),
-                       usdz: FileManager.default.fileExists(atPath: usdz.path) ? usdz : nil)
+                       usdz: FileManager.default.fileExists(atPath: usdz.path) ? usdz : nil,
+                       floorArea: NativeRoomArea.estimate(from: s.folder.appendingPathComponent("rooms/room-\(index).json"), toHouse: s.toHouse))
   }
 
   private static func roomsInBundle(_ s: PreviewSession) -> [PreviewRoom] {

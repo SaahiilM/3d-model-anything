@@ -1,0 +1,101 @@
+* { box-sizing: border-box; }
+:root {
+  color-scheme: dark;
+  --page: #142126;
+  --text: #e3edf0;
+  --muted: #b3cbd2;
+  --surface: #102027;
+  --surface-raised: #233d47;
+  --border: #668b95;
+  --selected: #477b89;
+  --focus: #a3e7f4;
+  --plan-bg: #171e20;
+  --plan-text: #e3edf0;
+  --plan-muted: #b3c4c3;
+  --plan-surface: #202b2d;
+  --plan-border: #526a6a;
+  --plan-wall: #d4e0dc;
+  --plan-gap: #171e20;
+  --plan-accent: #70c5d7;
+  --plan-label-halo: #171e20;
+  --vastu-surface: #202b2deF;
+  --vastu-control: #28383a;
+  --vastu-border: #718987;
+  --vastu-text: #e3edf0;
+  --vastu-help: #bed0cb;
+  --vastu-selected: #335247;
+  --vastu-selected-text: #e3edf0;
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --page: #e9efed;
+  --text: #243c43;
+  --muted: #49656b;
+  --surface: #dce7e4;
+  --surface-raised: #f6faf8;
+  --border: #668b95;
+  --selected: #c2ddd8;
+  --focus: #28778a;
+  --plan-bg: #f6f4ee;
+  --plan-text: #243c43;
+  --plan-muted: #49635f;
+  --plan-surface: #f6f4eef2;
+  --plan-border: #b5c2b9;
+  --plan-wall: #293e42;
+  --plan-gap: #f6f4ee;
+  --plan-accent: #13627a;
+  --plan-label-halo: #fff;
+  --vastu-surface: #f6f4eef2;
+  --vastu-control: #e8efea;
+  --vastu-border: #52747a;
+  --vastu-text: #243c43;
+  --vastu-help: #49635f;
+  --vastu-selected: #c4ddd0;
+  --vastu-selected-text: #243c43;
+  --vastu-grid-line: #604d2a;
+  --vastu-grid-fill: #c49b4a;
+}
+:root:not([data-theme="light"]) { --vastu-grid-line: #e1c67b; --vastu-grid-fill: #a9873d; }
+body { margin: 0; background: var(--page); color: var(--text); font: 13px/1.5 system-ui, sans-serif; height: 100dvh; display: flex; flex-direction: column; }
+.inspect-toolbar { padding: 12px 18px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: var(--surface); border-bottom: 1px solid var(--border); }
+.inspect-toolbar button, .inspect-open { padding: 7px 11px; color: inherit; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-raised); cursor: pointer; font: inherit; }
+.inspect-toolbar button[aria-pressed=true] { background: var(--selected); }
+.inspect-open input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.inspect-open:focus-within, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 3px; }
+#inspect-status { flex: 1 1 260px; color: var(--muted); }
+#inspect-viewport { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+#inspect-canvas { display: block; }
+#inspect-canvas[hidden] { display: none; }
+#inspect-plan { position: absolute; inset: 0; overflow: auto; padding: 24px; background: var(--plan-bg); color: var(--plan-text); }
+#inspect-plan[hidden] { display: none; }
+#inspect-plan svg { width: 100%; height: min(65vh, 700px); touch-action: none; }
+#inspect-plan header { max-width: 900px; margin: auto; }
+#inspect-plan aside { max-width: 900px; margin: auto; }
+.vastu-controls { position: static; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; max-width: 900px; margin: -12px auto 12px; padding: 10px 12px; background: var(--vastu-surface); color: var(--vastu-text); border: 1px solid var(--plan-border); border-radius: 8px; }
+.vastu-controls button { flex: none; padding: 7px 10px; color: var(--vastu-text); border: 1px solid var(--vastu-border); border-radius: 6px; background: var(--vastu-control); cursor: pointer; font: inherit; }
+.vastu-controls button[aria-pressed=true] { background: var(--vastu-selected); color: var(--vastu-selected-text); }
+.vastu-controls button:disabled { cursor: default; opacity: .65; }
+.vastu-settings { flex: 1 1 100%; display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; margin: 0; padding: 8px; border: 1px solid var(--plan-border); border-radius: 6px; }
+.vastu-settings[hidden] { display: none; }
+.vastu-settings legend { padding: 0 5px; font-weight: 650; }
+.vastu-field { display: flex; flex-direction: column; gap: 3px; min-width: 112px; font-size: 11px; }
+.vastu-field input:not([type=checkbox]):not([type=range]), .vastu-field select { min-height: 32px; padding: 4px 6px; color: var(--vastu-text); border: 1px solid var(--vastu-border); border-radius: 4px; background: var(--vastu-control); font: inherit; }
+.vastu-field input[type=checkbox] { width: 20px; height: 20px; }
+.vastu-settings button { min-height: 32px; }
+.vastu-overlay { pointer-events: none; }
+.vastu-labels { pointer-events: none; }
+.vastu-note { margin: 0; font-size: 12px; }
+.vastu-sectors { pointer-events: none; }
+.vastu-off { display: none; }
+.vastu-center { fill: var(--plan-surface); stroke: var(--plan-text); stroke-width: .035; }
+.vastu-label { font: 600 .16px system-ui, sans-serif; fill: var(--plan-text); stroke: var(--plan-label-halo); stroke-width: .045; paint-order: stroke; }
+.vastu-copy-fallback { display: block; width: min(900px, 100%); min-height: 16rem; margin: 16px auto; padding: 10px; color: var(--vastu-text); background: var(--vastu-control); border: 1px solid var(--vastu-border); font: 11px/1.4 ui-monospace, monospace; }
+.vastu-copy-fallback[hidden] { display: none; }
+
+.vastu-fine-tune { flex: 1 1 100%; }
+.vastu-fine-tune summary { cursor: pointer; font-weight: 600; }
+.vastu-advanced { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; padding-top: 10px; }
+.vastu-touch-help { flex: 1 1 100%; color: var(--vastu-help); font-size: 12px; }
+
+.theme-toggle { white-space: nowrap; }
+#inspect-plan svg.vastu-touch-adjusting { cursor: crosshair; }

@@ -45,6 +45,7 @@ final class PreviewModel: ObservableObject {
   @Published private(set) var style: RenderStyle = .photo
   @Published private(set) var styles: [RenderStyle] = []
   @Published private(set) var plan = false
+  @Published private(set) var planHasSettled = false
   /// plan cut, meters above the floor
   @Published var cutHeight: Float = 1.4 { didSet { applyClip() } }
   @Published private(set) var cutRange: ClosedRange<Float> = 0.2...2.6
@@ -71,6 +72,10 @@ final class PreviewModel: ObservableObject {
   @Published private(set) var measureB: SIMD3<Float>?
 
   @Published private(set) var scaleBar: (width: CGFloat, label: String)?
+  @Published var showNorth = false { didSet { scene.showNorth = showNorth } }
+  @Published private(set) var hasNorth = false
+  /// Vastu is an opt-in interpretation layer and is off whenever a preview is opened.
+  @Published var showVastu = false
   @Published var showStats = ProcessInfo.processInfo.arguments.contains("-preview-stats")
   @Published private(set) var stats = ""
   @Published private(set) var fps: Double?
@@ -99,6 +104,49 @@ final class PreviewModel: ObservableObject {
   var sessions: [PreviewSession] { source.sessions }
   var rooms: [PreviewRoom] { source.rooms }
   var isSingleRoom: Bool { visibleRooms.count == 1 && rooms.count > 1 }
+
+  /// RoomPlan floor footprints are estimates for individual rooms. Never combine them into a
+  /// house total because the saved floor surfaces can overlap or omit parts of the home.
+  var visibleAreaRooms: [PreviewRoom] {
+    rooms.filter { visibleRooms.contains($0.id) }
+  }
+
+  private var singleVisibleRoomWithFootprint: PreviewRoom? {
+    guard visibleRooms.count == 1,
+          let room = rooms.first(where: { visibleRooms.contains($0.id) }),
+          room.floorArea?.floorPolygon.count ?? 0 >= 3 else { return nil }
+    return room
+  }
+
+  var vastuFootprint: [CGPoint] {
+    guard let room = singleVisibleRoomWithFootprint else { return [] }
+    let size = scene.view.bounds.size
+    guard size.width > 0, size.height > 0, let area = room.floorArea else { return [] }
+    let projected = area.floorPolygon.map { point in
+      scene.view.projectPoint(SCNVector3(Float(point.x), Float(area.floorElevation), Float(point.y)))
+    }
+    guard projected.count >= 3, projected.allSatisfy({ $0.z > 0 && $0.z < 1 && $0.x >= 0 && $0.x <= Float(size.width) && $0.y >= 0 && $0.y <= Float(size.height) }) else { return [] }
+    return projected.map { CGPoint(x: CGFloat($0.x / Float(size.width)), y: CGFloat($0.y / Float(size.height))) }
+  }
+
+  var recordedNorthForVastu: (angle: Double, description: String)? {
+    guard let room = singleVisibleRoomWithFootprint,
+          let reading = northReadings[room.id] else { return nil }
+    // Convert the house-frame direction into clockwise degrees from screen-up in the current
+    // plan camera. That keeps the Vastu overlay aligned with the actual touch plan orientation.
+    let q = scene.cameraNode.simdOrientation
+    let screenRight = q.act(SIMD3<Float>(1, 0, 0))
+    let screenUp = q.act(SIMD3<Float>(0, 1, 0))
+    let horizontalNorth = SIMD3<Float>(reading.vector.x, 0, reading.vector.z)
+    let right = Double(simd_dot(horizontalNorth, screenRight))
+    let up = Double(simd_dot(horizontalNorth, screenUp))
+    guard right.isFinite, up.isFinite, hypot(right, up) > 0.001 else { return nil }
+    let degrees = atan2(right, up) * 180 / .pi
+    let normalized = (degrees + 360).truncatingRemainder(dividingBy: 360)
+    return (normalized, "Recorded in \(room.name) · \(reading.reference) north ±\(Int(ceil(reading.accuracy)))°")
+  }
+
+  private var northReadings: [String: PreviewNorth] = [:]
 
   // MARK: loading
 
@@ -142,6 +190,14 @@ final class PreviewModel: ObservableObject {
       loadStage = "Merging rooms"
       await Task.detached(priority: .userInitiated) { Self.trimSurroundings(loaded) }.value
     }
+    var north: [String: PreviewNorth] = [:]
+    for room in source.rooms {
+      if let session = source.sessions.first(where: { $0.index == room.session }),
+         let reading = PreviewNorth.load(session: session, room: room.index) { north[room.id] = reading }
+    }
+    hasNorth = !north.isEmpty
+    northReadings = north
+    scene.setNorth(north)
     assets = loaded
     for a in loaded { scene.add(a) }
     loadSeconds = CFAbsoluteTimeGetCurrent() - t0
@@ -308,9 +364,20 @@ final class PreviewModel: ObservableObject {
   func togglePlan() {
     if walkthrough { endWalkthrough() }
     plan.toggle()
+    planHasSettled = false
+    if !plan { showVastu = false }
     scene.setPlan(plan, animated: true)
     applyClip()
     if !plan { scaleBar = nil } else { cameraChanged() }
+    if plan {
+      Task { [weak self] in
+        // Plan framing animates for up to about 1.2 seconds; wait for it to finish before
+        // projecting the saved floor polygon into the Vastu overlay's fixed viewport.
+        try? await Task.sleep(nanoseconds: 1_400_000_000)
+        guard let self, self.plan else { return }
+        self.planHasSettled = true
+      }
+    }
   }
 
   private func applyClip() {
@@ -545,25 +612,42 @@ struct PreviewScreen: View {
   @Namespace private var styleNS
 
   var body: some View {
-    ZStack {
-      PreviewSceneView(scene: model.scene)
-        .ignoresSafeArea()
+    GeometryReader { safeArea in
+      ZStack {
+        PreviewSceneView(scene: model.scene)
+          .ignoresSafeArea()
 
-      // the photo, exactly where its pixels land on the 3D view (full-screen coordinates)
-      GeometryReader { geo in
-        if model.walkthrough, model.atPhoto, let img = model.overlay, let rect = model.photoRect(in: geo.size) {
-          Image(uiImage: img)
-            .resizable()
-            .frame(width: rect.width, height: rect.height)
-            .position(x: rect.midX, y: rect.midY)
-            .opacity(model.photoOpacity)
-            .transition(.opacity)
+        // the photo, exactly where its pixels land on the 3D view (full-screen coordinates)
+        GeometryReader { geo in
+          if model.walkthrough, model.atPhoto, let img = model.overlay, let rect = model.photoRect(in: geo.size) {
+            Image(uiImage: img)
+              .resizable()
+              .frame(width: rect.width, height: rect.height)
+              .position(x: rect.midX, y: rect.midY)
+              .opacity(model.photoOpacity)
+              .transition(.opacity)
+          }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+
+        // The plan remains visible beneath the Vastu interpretation, while the viewer controls
+        // and status chrome are removed for the duration of the modal.
+        if !model.showVastu {
+          overlays
+        }
+        if model.showVastu {
+          NativeVastuOverlay(
+            isPresented: $model.showVastu,
+            northAngleDegrees: model.recordedNorthForVastu?.angle,
+            northDescription: model.recordedNorthForVastu?.description ?? "",
+            limitation: "Room-only and approximate. The saved scan may omit floor details or contain alignment error.",
+            safeAreaInsets: safeArea.safeAreaInsets,
+            footprint: model.vastuFootprint
+          )
+          .ignoresSafeArea()
         }
       }
-      .ignoresSafeArea()
-      .allowsHitTesting(false)
-
-      overlays
     }
     .toolbar(.hidden, for: .navigationBar)
     .preferredColorScheme(.dark)
@@ -669,6 +753,7 @@ struct PreviewScreen: View {
       }
       Section {
         Toggle("Surroundings", isOn: Binding(get: { model.showSurroundings }, set: { model.setSurroundings($0) }))
+        Toggle("Recorded north", isOn: $model.showNorth).disabled(!model.hasNorth)
         Toggle("Statistics", isOn: $model.showStats)
         if model.canRecolor {
           Button { model.bakeMissing(force: true) } label: { Label("Recolor from photos", systemImage: "paintbrush") }
@@ -712,6 +797,10 @@ struct PreviewScreen: View {
       if model.measuring {
         MeasureBanner(model: model).transition(.move(edge: .top).combined(with: .opacity))
       }
+      if model.plan, !model.visibleAreaRooms.isEmpty {
+        RoomAreaLabels(rooms: model.visibleAreaRooms)
+          .transition(.move(edge: .top).combined(with: .opacity))
+      }
       if model.showStats, !model.stats.isEmpty {
         Button { model.measureFPS() } label: {
           Text(model.stats).font(.caption2.monospacedDigit()).foregroundStyle(.secondary)
@@ -730,6 +819,11 @@ struct PreviewScreen: View {
       GlassIconButton(icon: "scope") { model.resetView() }
       GlassIconButton(icon: model.plan ? "view.3d" : "map", active: model.plan) { model.togglePlan() }
         .disabled(model.walkthrough)
+      if model.plan {
+        GlassIconButton(icon: "safari", active: model.showVastu) { model.showVastu = true }
+          .disabled(!model.planHasSettled || model.vastuFootprint.count < 3)
+          .accessibilityLabel("Vastu overlay")
+      }
       if !model.photos.isEmpty {
         GlassIconButton(icon: "camera.viewfinder", active: model.walkthrough) { model.toggleWalkthrough() }
       }
@@ -909,6 +1003,42 @@ private struct ScaleBar: View {
 }
 
 /// Vertical slider for the plan cut height
+private struct RoomAreaLabels: View {
+  let rooms: [PreviewRoom]
+
+  var body: some View {
+    VStack(spacing: 3) {
+      ScrollView(.horizontal, showsIndicators: false) {
+        HStack(spacing: 7) {
+          ForEach(rooms) { room in
+            HStack(spacing: 6) {
+              Text(room.name).lineLimit(1)
+              if let estimate = room.floorArea {
+                Text("~\(Int(estimate.squareFeet.rounded())) sq ft")
+                  .fontWeight(.semibold).monospacedDigit()
+              } else {
+                Text("area unavailable")
+                  .foregroundStyle(.secondary)
+              }
+            }
+            .font(.caption)
+            .padding(.horizontal, 11)
+            .frame(height: 30)
+            .glass(Capsule())
+          }
+        }
+        .padding(.horizontal, 16)
+      }
+      Text("Approximate · room only")
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 3)
+        .glass(Capsule())
+    }
+  }
+}
+
 private struct CutSlider: View {
   @ObservedObject var model: PreviewModel
   private let height: CGFloat = 200
